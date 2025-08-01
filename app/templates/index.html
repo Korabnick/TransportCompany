@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Грузоперевозки | Cargo Transportation</title>
+  
+  <!-- Подключение внешних ресурсов -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  
+  <!-- Подключение локальных CSS и JS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: "#d46a00", secondary: "#f4c999" },
+          borderRadius: {
+            none: "0px",
+            sm: "4px",
+            DEFAULT: "8px",
+            md: "12px",
+            lg: "16px",
+            xl: "20px",
+            "2xl": "24px",
+            "3xl": "32px",
+            full: "9999px",
+            button: "8px",
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen">
+  <!-- Фиксированный фон -->
+  <div class="fixed-background"></div>
+  
+  <!-- Header -->
+  <div class="content-wrap">
+    <header class="backdrop-blur-sm">
+      <div class="max-w-6xl mx-auto px-4 sm:px-8 md:px-12 lg:px-16 xl:px-24">
+        <!-- Main Navigation -->
+        <div class="flex justify-between items-center">
+          <div class="flex items-center">
+            <!-- Используем кастомный размер для логотипа -->
+            <a href="#" class="logo-container block transition-opacity hover:opacity-80">
+              <!-- Логотип для светлой темы -->
+              <img 
+                src="{{ url_for('static', filename='img/lion.png') }}" 
+                alt="Проф.Экипаж" 
+                class="h-full dark:hidden"
+              >
+              <!-- Логотип для темной темы -->
+              <img 
+                src="{{ url_for('static', filename='img/lion.png') }}" 
+                alt="Проф.Экипаж" 
+                class="h-full hidden dark:block"
+              >
+            </a>
+            
+            <!-- Добавленный текстовый блок -->
+            <div class="ml-3 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div class="font-bold text-xl text-gray-800 dark:text-white tracking-tight">Проф.Экипаж</div>
+              <div class="text-sm text-gray-600 dark:text-gray-300 italic mt-1">
+                Грузоперевозки с профессиональным подходом
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex items-center space-x-2">
+            <button
+              class="bg-secondary border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
+            >
+              <i class="ri-truck-line mr-1"></i>
+              <span>Быстрый заказ</span>
+            </button>
+            <button
+              class="bg-white border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
+            >
+              <i class="ri-phone-line mr-1"></i>
+              <span>Перезвоним за 8 сек</span>
+            </button>
+            
+            <!-- Кнопка переключения темы -->
+            <button
+              id="themeToggle"
+              class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+            >
+              <i class="ri-sun-line dark:hidden text-sm transition-transform hover:scale-125"></i>
+              <i class="ri-moon-line hidden dark:block text-sm transition-transform hover:scale-125"></i>
+            </button>
+            
+            <div class="hidden md:flex flex-col items-end ml-1">
+              <div class="font-bold text-gray-800 whitespace-nowrap text-xl">8 (800) 555 3535</div>
+              <div class="text-sm text-gray-600 whitespace-nowrap">круглосуточно</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sub Navigation -->
+        <div class="border-t border-gray-100 mt-1">
+          <nav class="flex justify-between overflow-hidden">
+            <div class="flex">
+              <!-- Калькулятор -->
+              <a href="#" class="px-3 py-2 text-gray-700 calculator-tab active-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+                >Калькулятор</a
+              >
+              <!-- Работы -->
+              <a href="#" class="px-3 py-2 text-gray-700 works-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+                >Работы</a
+              >
+            </div>
+            <!-- Меню -->
+            <button
+              class="px-3 py-2 text-gray-700 flex items-center text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+            >
+              <i class="ri-menu-line mr-1"></i>
+              Меню
+            </button>
+          </nav>
+        </div>
+      </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 max-w-6xl">
+      <!-- Калькулятор (изначально видим) -->
+      <div class="w-full rounded-lg shadow-sm max-w-5xl mx-auto" id="calculatorContainer">
+        <div class="calculator-expanded grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
+          <h2 class="text-xl font-bold text-gray-800 mb-2 md:col-span-3">
+            Онлайн калькулятор стоимости перевозки
+          </h2>
+          
+          <!-- Шаг 1 -->
+          <div id="step1" class="space-y-4 border-r border-gray-200 pr-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 1: Маршрут и время</h3>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Откуда</label>
+              <div class="relative">
+                <input
+                  id="fromAddress"
+                  type="text"
+                  placeholder="Укажите адрес"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                >
+                  <i class="ri-map-pin-line"></i>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Куда</label>
+              <div class="relative">
+                <input
+                  id="toAddress"
+                  type="text"
+                  placeholder="Укажите адрес"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                >
+                  <i class="ri-map-pin-line"></i>
+                </button>
+              </div>
+            </div>
+            <button class="flex items-center text-primary transition-colors hover:text-primary/80">
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Добавить адрес</span>
+            </button>
+            <div>
+              <p class="block text-sm text-gray-600 mb-2">Время подачи:</p>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" checked />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-primary absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>20 мин</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>30 мин</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>1 час</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1"
+                >Дата и время</label
+              >
+              <div class="relative">
+                <input
+                  id="pickupTime"
+                  type="datetime-local"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Срочная подача</label>
+              <div class="flex items-center">
+                <input
+                  id="urgentPickup"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                />
+                <label for="urgentPickup" class="ml-2 text-sm text-gray-600">
+                  Подача в течение 20 минут (+30% к стоимости)
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1"
+                >Длительность</label
+              >
+              <div class="relative">
+                <select
+                  id="durationSelect"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none pr-8"
+                >
+                  <option value="1">1 час</option>
+                  <option value="2">2 часа</option>
+                  <option value="3">3 часа</option>
+                  <option value="4">4 часа</option>
+                  <option value="6">6 часов</option>
+                  <option value="8">8 часов</option>
+                </select>
+                <div
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400"
+                >
+                  <i class="ri-arrow-down-s-line"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Новости (изначально видимы) -->
+          <div id="newsCarousel" class="md:col-span-2 space-y-4 px-6">
+            <h3 class="font-bold text-gray-800 mb-4">Новости компании</h3>
+            <div class="relative overflow-hidden rounded-lg h-96">
+              <div class="carousel-slides flex transition-transform duration-300">
+                <div class="carousel-slide min-w-full">
+                  <img src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" alt="Новость 1" class="w-full h-96 object-cover">
+                  <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <h4 class="font-bold text-white">Скидка 40% на все перевозки</h4>
+                    <p class="text-sm text-white/80">Акция действует до 30 июня</p>
+                  </div>
+                </div>
+                <div class="carousel-slide min-w-full">
+                  <img src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" alt="Новость 2" class="w-full h-96 object-cover">
+                  <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <h4 class="font-bold text-white">Новые автомобили в парке</h4>
+                    <p class="text-sm text-white/80">У нас появились машины с большим объемом</p>
+                  </div>
+                </div>
+              </div>
+              <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
+                <button class="carousel-dot w-2 h-2 rounded-full" data-index="0"></button>
+                <button class="carousel-dot w-2 h-2 rounded-full" data-index="1"></button>
+              </div>
+              <button class="carousel-prev absolute left-4 top-1/2 -translate-y-1/2 rounded-full p-2 transition-transform hover:scale-110">
+                <i class="ri-arrow-left-s-line text-white"></i>
+              </button>
+              <button class="carousel-next absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-2 transition-transform hover:scale-110">
+                <i class="ri-arrow-right-s-line text-white"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Шаг 2 (изначально скрыт) -->
+          <div id="step2" class="hidden space-y-4 border-r border-gray-200 px-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 2: Выбор машины</h3>
+            <div>
+              <p class="text-sm text-gray-600 mb-2">Пассажиры:</p>
+              <div class="flex space-x-2">
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="0"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="1"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="2"
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="3"
+                >
+                  3
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="4"
+                >
+                  4
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="5"
+                >
+                  5
+                </button>
+              </div>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-2">Грузчики:</p>
+              <div class="flex space-x-2">
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="0"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="1"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="2"
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="3"
+                >
+                  3
+                </button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Высота</label>
+                <select
+                  id="heightSelect"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option value="any">Любая</option>
+                  <option value="1.8">1.8 м</option>
+                  <option value="2.0">2.0 м</option>
+                  <option value="2.2">2.2 м</option>
+                  <option value="2.5">2.5 м</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Длина</label>
+                <select
+                  id="lengthSelect"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option value="any">Любая</option>
+                  <option value="3.0">3 м</option>
+                  <option value="4.0">4 м</option>
+                  <option value="4.5">4.5 м</option>
+                  <option value="5.0">5 м</option>
+                  <option value="6.0">6 м</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Кузов</label>
+              <select
+                id="bodyTypeSelect"
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+              >
+                <option value="any">Любая</option>
+                <option value="tent">Тент</option>
+                <option value="van">Фургон</option>
+                <option value="board">Борт</option>
+              </select>
+            </div>
+            <button
+              class="w-full text-left text-primary flex items-center mt-4 transition-colors hover:text-primary/80"
+            >
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Дополнительные услуги</span>
+            </button>
+            <div class="mt-4">
+              <p class="text-sm text-gray-600 mb-2">Доступный транспорт:</p>
+              <div id="vehiclesContainer" class="relative">
+                <!-- Карусель транспорта -->
+                <div class="vehicles-carousel overflow-hidden">
+                  <div class="vehicles-slides flex transition-transform duration-300" id="vehiclesSlides">
+                    <!-- Транспорт будет загружен динамически -->
+                  </div>
+                </div>
+                
+                <!-- Навигация карусели -->
+                <button class="vehicle-prev absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all hover:scale-110" id="vehiclePrev">
+                  <i class="ri-arrow-left-s-line text-gray-600"></i>
+                </button>
+                <button class="vehicle-next absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all hover:scale-110" id="vehicleNext">
+                  <i class="ri-arrow-right-s-line text-gray-600"></i>
+                </button>
+                
+                <!-- Индикаторы -->
+                <div class="flex justify-center mt-4 space-x-2" id="vehicleDots">
+                  <!-- Точки будут добавлены динамически -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Шаг 3 (изначально скрыт) -->
+          <div id="step3" class="hidden space-y-4 pl-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 3: Оформить заказ</h3>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Имя</label>
+              <input
+                id="customerName"
+                type="text"
+                placeholder="Ваше имя"
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Телефон</label>
+              <input
+                id="customerPhone"
+                type="tel"
+                placeholder="Ваш телефон"
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <p class="block text-sm text-gray-600 mb-2">Оплата:</p>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input type="radio" name="payment" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>Наличными</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="payment" class="hidden" checked />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-primary absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>Онлайн оплата</span>
+                </label>
+              </div>
+            </div>
+            <button class="text-primary flex items-center transition-colors hover:text-primary/80">
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Примечания к заказу</span>
+            </button>
+            <div class="mt-4 space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Стоимость маршрута</span>
+                <span id="routeCost" class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Стоимость транспорта</span>
+                <span id="vehicleCost" class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Стоимость грузчиков</span>
+                <span id="loadersCost" class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between font-bold mt-4">
+                <span>Итого:</span>
+                <span id="totalCost" class="text-gray-800">0 ₽</span>
+              </div>
+            </div>
+            <button
+              id="orderButton"
+              class="w-full bg-primary text-white py-3 rounded-button mt-4 transition-transform hover:scale-[1.02] shadow-md hover:shadow-lg"
+            >
+              Оформить сейчас
+            </button>
+            <p class="text-xs text-gray-600 mt-4 text-center">
+              Нажимая кнопку «Оформить сейчас», вы соглашаетесь с политикой
+              обработки ваших персональных данных
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Галерея работ (изначально скрыта) -->
+      <div id="worksGallery" class="hidden w-full rounded-lg shadow-sm max-w-5xl mx-auto mt-8">
+        <div class="p-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">Фото и видео работы компании</h2>
+          
+          <!-- Фото галерея -->
+          <div class="mb-12">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Фотогалерея</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 1"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 2"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 3"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 4"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 5"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 6"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+            </div>
+          </div>
+          
+          <!-- Видео галерея -->
+          <div>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Видеогалерея</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="video-thumbnail gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Видео работы 1"
+                  class="w-full h-full object-cover"
+                >
+                <button class="video-play-btn">
+                  <i class="ri-play-fill text-xl text-gray-800"></i>
+                </button>
+              </div>
+              <div class="video-thumbnail gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Видео работы 2"
+                  class="w-full h-full object-cover"
+                >
+                <button class="video-play-btn">
+                  <i class="ri-play-fill text-xl text-gray-800"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Social Media Section -->
+      <div
+        class="mt-12 flex flex-col md:flex-row items-center justify-between bg-white p-6 rounded-lg shadow-sm max-w-5xl mx-auto"
+      >
+        <div class="mb-4 md:mb-0">
+          <h3 class="text-lg font-bold text-gray-800 mb-2">
+            Проф.Экипаж в соцсетях
+          </h3>
+          <p class="text-gray-600">
+            Следите за нашими новостями и акциями
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-4">
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-vk-fill mr-2 text-xl"></i>
+            <span>ВКонтакте</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-telegram-fill mr-2 text-xl"></i>
+            <span>Telegram</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-youtube-fill mr-2 text-xl"></i>
+            <span>YouTube</span>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Promo Cards -->
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <!-- Discount Card -->
+        <div
+          class="promo-secondary rounded-lg p-6 shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02]"
+        >
+          <div class="relative z-10">
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">
+              Скидка 40% при заказе<br />на сайте или в приложении
+            </h3>
+            <p class="text-gray-700 mt-4">
+              Грузоперевозки по Ленинградской области дешево – это реальность! Оформите заказ
+              на сайте или в приложении и получите скидку.
+            </p>
+          </div>
+          <div class="absolute right-0 bottom-0 w-1/3 h-1/2">
+            <!-- <div
+              style="background-image: url('https://readdy.ai/api/search-image?query=cardboard%20boxes%20with%20delivery%20symbols%2C%20minimalist%20design%20on%20yellow%20background%2C%20simple%20graphic%20illustration&width=200&height=200&seq=2&orientation=squarish');"
+              class="w-full h-full bg-no-repeat bg-contain bg-right-bottom"
+            ></div> -->
+          </div>
+        </div>
+        
+        <!-- Unlimited Card -->
+        <div
+          class="promo-primary rounded-lg p-6 shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02]"
+        >
+          <div class="relative z-10">
+            <h3 class="text-2xl font-bold text-white mb-2">Безлимит в пути</h3>
+            <p class="text-white mt-4">
+              Мы отменили счетчики! Стоимость поездки теперь фиксированная, а
+              это значит, как бы ни складывалась дорожная обстановка и сколько
+              бы пробок не встретилось на пути.
+            </p>
+          </div>
+          <div class="absolute right-0 bottom-0 w-1/3 h-1/2">
+            <!-- <div
+              style="background-image: url('https://readdy.ai/api/search-image?query=map%20with%20route%20markers%20and%20navigation%20symbols%20on%20red%20background%2C%20minimalist%20design%2C%20simple%20graphic%20illustration&width=200&height=200&seq=3&orientation=squarish');"
+              class="w-full h-full bg-no-repeat bg-contain bg-right-bottom"
+            ></div> -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- New Detailed Description Block -->
+      <div class="mt-8 bg-white rounded-lg shadow-sm p-8 max-w-5xl mx-auto relative overflow-hidden">
+        <div class="flex flex-col md:flex-row">
+          <div class="md:w-2/3 pr-8">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">Профессиональные грузоперевозки по Санкт-Петербургу и Ленинградской области</h2>
+            <p class="text-gray-700 mb-8">
+              Компания "Проф.Экипаж" - это надежные грузоперевозки с гарантией сохранности ваших вещей. 
+              Мы работаем с любыми типами грузов - от небольших посылок до мебели и строительных материалов. 
+              В нашем распоряжении современный автопарк и квалифицированные специалисты, которые аккуратно 
+              выполнят погрузку, транспортировку и разгрузку вашего имущества.
+            </p>
+            
+            <div class="grid grid-cols-2 gap-6">
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-box-2-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Хрупкие и ценные грузы</p>
+                  <p class="text-sm text-gray-600">Используем профессиональную упаковку для безопасной перевозки</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-steering-2-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Опытные водители</p>
+                  <p class="text-sm text-gray-600">Аккуратно управляют автомобилем и знают лучшие маршруты</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-coupon-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Прозрачное ценообразование</p>
+                  <p class="text-sm text-gray-600">Фиксированная стоимость без скрытых платежей</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-timer-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Быстрая подача транспорта</p>
+                  <p class="text-sm text-gray-600">Машина будет у вас в течение 20 минут если потребуется срочная перевозка</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="md:w-1/3 mt-6 md:mt-0">
+            <div class="h-64 bg-gray-100 rounded-lg overflow-hidden">
+              <img 
+                src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                alt="Профессиональные грузоперевозки"
+                class="w-full h-full object-cover"
+              >
+            </div>
+            
+            <div class="mt-6">
+              <h3 class="font-bold text-lg text-gray-800">Почему выбирают нас</h3>
+              <div class="relative">
+                <div class="text-gray-700 mt-2 overflow-hidden transition-all duration-300 max-h-[4.5em] relative" id="expandableText">
+                  <p>Наша команда обеспечивает полный цикл грузоперевозок - от консультации до разгрузки. Мы тщательно планируем маршруты с учетом загруженности дорог, подбираем транспорт в зависимости от характеристик груза. Все водители имеют стаж работы от 5 лет и отлично ориентируются в Санкт-Петербургу и Ленинградской области. Для защиты ваших вещей используем качественные упаковочные материалы. Стоимость услуги фиксируется в договоре и не меняется в процессе. Также мы можем организовать временное хранение груза на нашем складе. Каждый сотрудник проходит обучение и проверку перед выходом на работу.</p>
+                  
+                  <!-- Градиент для плавного исчезновения текста -->
+                  <div class="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" id="fadeOverlay"></div>
+                </div>
+                
+                <button id="expandTextBtn" class="absolute bottom-0 right-0 flex items-center justify-center w-8 h-8 bg-white rounded-full shadow-sm transform translate-y-1/2 transition-transform hover:scale-110" onclick="toggleText()">
+                  <i class="ri-arrow-down-s-line text-gray-600" id="expandIcon"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <div class="footer-spacer"></div>
+    
+    <footer>
+      <div class="max-w-6xl mx-auto px-4 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <!-- Колонка 1: Контакты -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Контакты</h3>
+            <ul class="space-y-2">
+              <li class="flex items-center">
+                <i class="ri-phone-line mr-2"></i>
+                <span>8 (800) 555-3535</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-mail-line mr-2"></i>
+                <span>info@prof-ekipazh.ru</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-map-pin-line mr-2"></i>
+                <span>Санкт-Петербург, ул. Грузовая, д. 5</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-time-line mr-2"></i>
+                <span>Круглосуточно, без выходных</span>
+              </li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 2: Услуги -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Услуги</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="hover:text-primary transition-colors">Квартирный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Офисный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Дачный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Перевозка мебели</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Перевозка техники</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Строительные перевозки</a></li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 3: Компания -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Компания</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="hover:text-primary transition-colors">О нас</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Тарифы</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Отзывы</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Вакансии</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Партнерам</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Контакты</a></li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 4: Подписка -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Подписка</h3>
+            <p class="mb-4">Узнавайте первыми о скидках и акциях</p>
+            <div class="flex mb-4">
+              <input 
+                type="email" 
+                placeholder="Ваш email" 
+                class="px-4 py-2 rounded-l w-full focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+              <button class="bg-primary px-4 py-2 rounded-r transition-transform hover:scale-105">
+                <i class="ri-send-plane-line"></i>
+              </button>
+            </div>
+            <div class="flex space-x-4">
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-vk-fill"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-telegram-fill"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-youtube-fill"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <div class="mb-4 md:mb-0">
+            <p>&copy; 2025 "Проф.Экипаж". Все права защищены.</p>
+          </div>
+          <div class="flex flex-wrap gap-4">
+            <a href="#" class="text-sm hover:text-primary transition-colors">Политика конфиденциальности</a>
+            <a href="#" class="text-sm hover:text-primary transition-colors">Пользовательское соглашение</a>
+            <a href="#" class="text-sm hover:text-primary transition-colors">Карта сайта</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculator_v2.js') }}"></script>
+</body>
+</html>

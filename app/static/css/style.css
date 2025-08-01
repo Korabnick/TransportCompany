@@ -1,0 +1,459 @@
+/* CSS переменные для светлой темы */
+:root {
+  /* Основные цвета */
+  --color-primary: #d46a00;
+  --color-secondary: #f4c999;
+  --color-text-primary: #0b0f13;
+  --color-text-secondary: #1a1d21;
+  --color-text-tertiary: #2c2f32;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-border: #202020;
+  --color-overlay: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
+  
+  /* Компоненты */
+  --header-bg: rgba(255, 255, 255, 0.5);
+  --header-border: #f3f4f6;
+  --footer-bg: #1f2937;
+  --footer-text: #f9fafb;
+  --footer-border: #374151;
+  --footer-input-bg: #374151;
+  --footer-input-border: #4b5563;
+  
+  /* Калькулятор */
+  --calc-bg: rgba(255, 255, 255, 0.5);
+  --calc-border: #202020;
+  --calc-section-border: #202020;
+  
+  /* Карточки */
+  --card-bg: rgba(255, 255, 255, 0.5);
+  --card-border: #0f0f10;
+  --promo-secondary: #f4c999;
+  --promo-primary: #d46a00;
+  
+  /* Новостной слайдер */
+  --carousel-dot: rgba(255, 255, 255, 0.5);
+  --carousel-nav-bg: rgba(255, 255, 255, 0.5);
+  --carousel-nav-color: #ffffff;
+
+  /* Тень для текста */
+  --text-shadow-light: 0 0 0px rgba(255, 255, 255, 0.0), 
+                      0 0 5px rgba(255, 255, 255, 0.3);
+  
+  /* Фон */
+  --fixed-bg-opacity: 0.7;
+  --fixed-bg-filter: brightness(1.2) saturate(1.5);
+}
+
+/* CSS переменные для темной темы */
+.dark {
+  /* Основные цвета */
+  --color-primary: #e58a2b;
+  --color-secondary: #3a2a24;
+  --color-text-primary: #f8e0c2;
+  --color-text-secondary: #e0c8b0;
+  --color-text-tertiary: #c8b09e;
+  --color-bg-primary: #121212;
+  --color-bg-secondary: #1e1a1a;
+  --color-bg-tertiary: #2d2a24;
+  --color-border: #2d2a24;
+  --color-overlay: linear-gradient(to top, #1e1a1a, transparent);
+  
+  /* Компоненты */
+  --header-bg: rgba(30, 26, 26, 0.7);
+  --header-border: #2d2a24;
+  --footer-bg: #1e1a1a;
+  --footer-text: #f0d9c9;
+  --footer-border: #3a2a24;
+  --footer-input-bg: #2a211b;
+  --footer-input-border: #3a2a24;
+  
+  /* Калькулятор */
+  --calc-bg: rgba(30, 26, 26, 0.7);
+  --calc-border: #2d2a24;
+  --calc-section-border: #2d2a24;
+  
+  /* Карточки */
+  --card-bg: rgba(30, 26, 26, 0.7);
+  --card-border: #2d2a24;
+  --promo-secondary: #3a2a24;
+  --promo-primary: #d46a00;
+  
+  /* Новостной слайдер */
+  --carousel-dot: rgba(255, 255, 255, 0.5);
+  --carousel-nav-bg: rgba(30, 26, 26, 0.3);
+  --carousel-nav-color: #ffffff;
+
+  /* Тень для текста */
+  --text-shadow-light: none;
+  
+  /* Фон */
+  --fixed-bg-opacity: 1;
+  --fixed-bg-filter: none;
+}
+
+/* Общие стили с использованием CSS переменных */
+body {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s, color 0.2s;
+  text-shadow: var(--text-shadow-light);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-wrap {
+  flex: 1 0 auto;
+}
+
+.footer-spacer {
+  height: 4rem;
+}
+
+footer {
+  flex-shrink: 0;
+}
+
+.fixed-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url('../img/prof_ekipazh_bg_edited.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  z-index: -1;
+  opacity: var(--fixed-bg-opacity);
+  filter: var(--fixed-bg-filter);
+  transition: opacity 0.5s ease, filter 0.5s ease;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="radio"] + span > span {
+  transition: all 0.2s;
+}
+
+.carousel-slide {
+  position: relative;
+}
+
+.carousel-dot.active {
+  background-color: white;
+  width: 8px;
+  border-radius: 4px;
+}
+
+.calculator-expanded {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.calculator-expanded > div {
+  border-right: 1px solid var(--calc-section-border);
+  padding-right: 2rem;
+}
+
+.calculator-expanded > div:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* Стили компонентов */
+header {
+  background-color: var(--header-bg);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--header-border);
+}
+
+.bg-white {
+  background-color: var(--card-bg) !important;
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary) !important;
+}
+
+.text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+.text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+.text-gray-600 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.border-gray-100 {
+  border-color: var(--color-border) !important;
+}
+
+.border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+.bg-gray-50 {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+#fadeOverlay {
+  background: var(--color-overlay) !important;
+}
+
+input,
+select {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.passenger-btn.bg-primary,
+.loader-btn.bg-primary {
+  border-color: var(--color-primary);
+}
+
+footer {
+  background-color: var(--footer-bg);
+  color: var(--footer-text);
+}
+
+footer a {
+  color: var(--footer-text);
+}
+
+footer input {
+  background-color: var(--footer-input-bg);
+  color: var(--footer-text);
+  border-color: var(--footer-input-border);
+}
+
+footer input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+#calculatorContainer {
+  background-color: var(--calc-bg);
+  border: 1px solid var(--calc-border);
+}
+
+.promo-secondary {
+  background-color: var(--promo-secondary);
+}
+
+.promo-primary {
+  background-color: var(--promo-primary);
+}
+
+.carousel-dot {
+  background-color: var(--carousel-dot);
+}
+
+.carousel-prev,
+.carousel-next {
+  background-color: var(--carousel-nav-bg);
+  color: var(--carousel-nav-color);
+}
+
+.active-tab {
+  position: relative;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.active-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+}
+
+.gallery-item {
+  transition: transform 0.5s ease;
+}
+
+.gallery-item:hover {
+  transform: scale(1.03);
+}
+
+.video-thumbnail {
+  position: relative;
+}
+
+.video-thumbnail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+.video-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  width: 50px;
+  height: 50px;
+  background: rgba(255,255,255,0.8);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.video-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.logo-container {
+  height: 5rem;
+}
+
+header > div:first-child {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+body,
+.fixed-background,
+header,
+footer,
+#calculatorContainer {
+  will-change: background-color, color, border-color;
+  backface-visibility: hidden;
+}
+
+body, button, input, select, textarea {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.passenger-btn, .loader-btn {
+  min-height: 40px;
+}
+
+.promo-secondary, .promo-primary {
+  min-height: 200px;
+}
+
+/* Стили для карусели транспорта */
+.vehicles-carousel {
+  position: relative;
+  height: 160px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.vehicles-slides {
+  height: 100%;
+  display: flex;
+  transition: transform 0.3s ease;
+  width: 100%;
+}
+
+.vehicle-slide {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.vehicle-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+  border: none;
+  background-color: var(--color-bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.vehicle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.vehicle-card.selected {
+  border: 2px solid var(--color-primary);
+  background-color: rgba(212, 106, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(212, 106, 0, 0.2);
+}
+
+.vehicle-prev,
+.vehicle-next {
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.vehicle-prev:hover,
+.vehicle-next:hover {
+  background-color: var(--color-bg-primary) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.vehicle-dot {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.vehicle-dot:hover {
+  background-color: var(--color-primary) !important;
+  transform: scale(1.2);
+}
+
+/* Адаптивность для карусели */
+@media (max-width: 768px) {
+  .vehicles-carousel {
+    height: 140px;
+  }
+  
+  .vehicle-card {
+    padding: 10px;
+  }
+  
+  .vehicle-prev,
+  .vehicle-next {
+    width: 28px;
+    height: 28px;
+  }
+}

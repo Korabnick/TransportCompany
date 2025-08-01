@@ -1,0 +1,1793 @@
+Dockerfile:
+```
+FROM python:3.12-slim
+
+# Установка зависимостей
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Установка зависимостей Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Создаем директорию для метрик
+RUN mkdir -p /tmp/prometheus
+
+# Копирование исходного кода
+COPY . .
+
+# Запуск приложения с предзагрузкой
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "--preload", "app:app"]
+```
+
+docker-compose.yml:
+```
+services:
+  app:
+    build: .
+    volumes:
+      - ./app:/app/app
+    environment:
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+      - prometheus_multiproc_dir=/tmp/prometheus  # Ключевая переменная для многопроцессности
+    expose:
+      - 5000
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    environment:
+      - PROMETHEUS_SCRAPE_INTERVAL=${PROMETHEUS_SCRAPE_INTERVAL:-15s}
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/graph"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=${GF_USERS_ALLOW_SIGN_UP:-false}
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+networks:
+  backend:
+```
+
+.env:
+```
+# Настройки приложения
+FLASK_DEBUG=0
+PROMETHEUS_MULTIPROC_DIR=/tmp
+
+# Настройки Grafana
+GF_SECURITY_ADMIN_USER=admin
+GF_SECURITY_ADMIN_PASSWORD=admin
+GF_USERS_ALLOW_SIGN_UP=false
+
+# Настройки Prometheus
+PROMETHEUS_SCRAPE_INTERVAL=15s
+```
+
+nginx/nfinx.conf:
+```
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
+    # Настройки логов
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
+    error_log /var/log/nginx/error.log warn;
+    
+    # Настройки сжатия
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_vary on;
+    
+    # Настройки кэширования
+    proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size=1g inactive=60m use_temp_path=off;
+    
+    # Настройки таймаутов
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+    send_timeout 60s;
+    
+    upstream flask {
+        server app:5000;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+        
+        # Корневой URL
+        location / {
+            proxy_pass http://flask;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Кэширование статики
+            location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+                expires 30d;
+                add_header Cache-Control "public, no-transform";
+                proxy_pass http://flask;
+            }
+        }
+
+        # Метрики для Prometheus
+        location /metrics {
+            proxy_pass http://flask/metrics;
+        }
+        
+        # Запрет доступа к скрытым файлам
+        location ~ /\. {
+            deny all;
+            access_log off;
+            log_not_found off;
+        }
+        
+        # Обработка ошибок
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+            root /usr/share/nginx/html;
+        }
+    }
+}
+```
+
+prometheus/prometheus.yml:
+```
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: 'flask'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['app:5000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '$1'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'health-checks'
+    metrics_path: '/health'
+    static_configs:
+      - targets:
+        - 'app:5000'
+        - 'nginx:80'
+        - 'prometheus:9090'
+        - 'grafana:3000'
+```
+
+app/__init__.py:
+```
+import os
+from flask import Flask
+from prometheus_flask_exporter.multiprocess import GunicornPrometheusMetrics
+from dotenv import load_dotenv
+import shutil
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# Конфигурация приложения
+app.config.update(
+    SECRET_KEY=os.getenv('FLASK_SECRET_KEY', 'default-secret-key'),
+    TEMPLATES_AUTO_RELOAD=True,
+)
+
+# Настройка метрик для многопроцессного режима
+if os.environ.get('PROMETHEUS_MULTIPROC_DIR'):
+    # Очищаем и создаем директорию для метрик
+    metrics_dir = os.environ['PROMETHEUS_MULTIPROC_DIR']
+    if os.path.exists(metrics_dir):
+        shutil.rmtree(metrics_dir)
+    os.makedirs(metrics_dir, exist_ok=True)
+    
+    metrics = GunicornPrometheusMetrics(app)
+else:
+    from prometheus_flask_exporter import PrometheusMetrics
+    metrics = PrometheusMetrics(app)
+
+# Регистрация метрик
+metrics.info('app_info', 'Cargo Transportation Info', version='1.0.0')
+
+# Импорт маршрутов
+from app import routes
+```
+
+app/routes.py:
+```
+from flask import Response, render_template
+from app import app, metrics
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/health')
+def health_check():
+    return {"status": "healthy"}, 200
+
+# Эндпоинт для метрик (только для однопроцессного режима)
+@app.route('/metrics')
+def metrics_endpoint():
+    # Для многопроцессного режима используем встроенный обработчик
+    if hasattr(metrics, 'export_default'):
+        return metrics.export_default()
+    return Response("Metrics endpoint is handled automatically", status=200)
+```
+
+app/templates/index.html:
+```
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Грузоперевозки | Cargo Transportation</title>
+  
+  <!-- Подключение внешних ресурсов -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  
+  <!-- Подключение локальных CSS и JS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: "#d46a00", secondary: "#f4c999" },
+          borderRadius: {
+            none: "0px",
+            sm: "4px",
+            DEFAULT: "8px",
+            md: "12px",
+            lg: "16px",
+            xl: "20px",
+            "2xl": "24px",
+            "3xl": "32px",
+            full: "9999px",
+            button: "8px",
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen">
+  <!-- Фиксированный фон -->
+  <div class="fixed-background"></div>
+  
+  <!-- Header -->
+  <div class="content-wrap">
+    <header class="backdrop-blur-sm">
+      <div class="max-w-6xl mx-auto px-4 sm:px-8 md:px-12 lg:px-16 xl:px-24">
+        <!-- Main Navigation -->
+        <div class="flex justify-between items-center">
+          <div class="flex items-center">
+            <!-- Используем кастомный размер для логотипа -->
+            <a href="#" class="logo-container block transition-opacity hover:opacity-80">
+              <!-- Логотип для светлой темы -->
+              <img 
+                src="{{ url_for('static', filename='img/lion.png') }}" 
+                alt="Проф.Экипаж" 
+                class="h-full dark:hidden"
+              >
+              <!-- Логотип для темной темы -->
+              <img 
+                src="{{ url_for('static', filename='img/lion.png') }}" 
+                alt="Проф.Экипаж" 
+                class="h-full hidden dark:block"
+              >
+            </a>
+            
+            <!-- Добавленный текстовый блок -->
+            <div class="ml-3 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <div class="font-bold text-xl text-gray-800 dark:text-white tracking-tight">Проф.Экипаж</div>
+              <div class="text-sm text-gray-600 dark:text-gray-300 italic mt-1">
+                Грузоперевозки с профессиональным подходом
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex items-center space-x-2">
+            <button
+              class="bg-secondary border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
+            >
+              <i class="ri-truck-line mr-1"></i>
+              <span>Быстрый заказ</span>
+            </button>
+            <button
+              class="bg-white border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
+            >
+              <i class="ri-phone-line mr-1"></i>
+              <span>Перезвоним за 8 сек</span>
+            </button>
+            
+            <!-- Кнопка переключения темы -->
+            <button
+              id="themeToggle"
+              class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+            >
+              <i class="ri-sun-line dark:hidden text-sm transition-transform hover:scale-125"></i>
+              <i class="ri-moon-line hidden dark:block text-sm transition-transform hover:scale-125"></i>
+            </button>
+            
+            <div class="hidden md:flex flex-col items-end ml-1">
+              <div class="font-bold text-gray-800 whitespace-nowrap text-xl">8 (800) 555 3535</div>
+              <div class="text-sm text-gray-600 whitespace-nowrap">круглосуточно</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sub Navigation -->
+        <div class="border-t border-gray-100 mt-1">
+          <nav class="flex justify-between overflow-hidden">
+            <div class="flex">
+              <!-- Калькулятор -->
+              <a href="#" class="px-3 py-2 text-gray-700 calculator-tab active-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+                >Калькулятор</a
+              >
+              <!-- Работы -->
+              <a href="#" class="px-3 py-2 text-gray-700 works-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+                >Работы</a
+              >
+            </div>
+            <!-- Меню -->
+            <button
+              class="px-3 py-2 text-gray-700 flex items-center text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
+            >
+              <i class="ri-menu-line mr-1"></i>
+              Меню
+            </button>
+          </nav>
+        </div>
+      </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 max-w-6xl">
+      <!-- Калькулятор (изначально видим) -->
+      <div class="w-full rounded-lg shadow-sm max-w-5xl mx-auto" id="calculatorContainer">
+        <div class="calculator-expanded grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
+          <h2 class="text-xl font-bold text-gray-800 mb-2 md:col-span-3">
+            Онлайн калькулятор стоимости перевозки
+          </h2>
+          
+          <!-- Шаг 1 -->
+          <div id="step1" class="space-y-4 border-r border-gray-200 pr-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 1: Маршрут и время</h3>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Откуда</label>
+              <div class="relative">
+                <input
+                  type="text"
+                  placeholder="Укажите адрес"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                >
+                  <i class="ri-map-pin-line"></i>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Куда</label>
+              <div class="relative">
+                <input
+                  type="text"
+                  placeholder="Укажите адрес"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                >
+                  <i class="ri-map-pin-line"></i>
+                </button>
+              </div>
+            </div>
+            <button class="flex items-center text-primary transition-colors hover:text-primary/80">
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Добавить адрес</span>
+            </button>
+            <div>
+              <p class="block text-sm text-gray-600 mb-2">Время подачи:</p>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" checked />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-primary absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>20 мин</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>30 мин</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="time" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>1 час</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1"
+                >Дата и время</label
+              >
+              <div class="relative">
+                <input
+                  type="text"
+                  value="13.06.2025 15:06"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                >
+                  <i class="ri-calendar-line"></i>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1"
+                >Длительность</label
+              >
+              <div class="relative">
+                <select
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none pr-8"
+                >
+                  <option>1 час</option>
+                  <option>2 часа</option>
+                  <option>3 часа</option>
+                  <option>4 часа</option>
+                </select>
+                <div
+                  class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400"
+                >
+                  <i class="ri-arrow-down-s-line"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Новости (изначально видимы) -->
+          <div id="newsCarousel" class="md:col-span-2 space-y-4 px-6">
+            <h3 class="font-bold text-gray-800 mb-4">Новости компании</h3>
+            <div class="relative overflow-hidden rounded-lg h-96">
+              <div class="carousel-slides flex transition-transform duration-300">
+                <div class="carousel-slide min-w-full">
+                  <img src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" alt="Новость 1" class="w-full h-96 object-cover">
+                  <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <h4 class="font-bold text-white">Скидка 40% на все перевозки</h4>
+                    <p class="text-sm text-white/80">Акция действует до 30 июня</p>
+                  </div>
+                </div>
+                <div class="carousel-slide min-w-full">
+                  <img src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" alt="Новость 2" class="w-full h-96 object-cover">
+                  <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <h4 class="font-bold text-white">Новые автомобили в парке</h4>
+                    <p class="text-sm text-white/80">У нас появились машины с большим объемом</p>
+                  </div>
+                </div>
+              </div>
+              <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2">
+                <button class="carousel-dot w-2 h-2 rounded-full" data-index="0"></button>
+                <button class="carousel-dot w-2 h-2 rounded-full" data-index="1"></button>
+              </div>
+              <button class="carousel-prev absolute left-4 top-1/2 -translate-y-1/2 rounded-full p-2 transition-transform hover:scale-110">
+                <i class="ri-arrow-left-s-line text-white"></i>
+              </button>
+              <button class="carousel-next absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-2 transition-transform hover:scale-110">
+                <i class="ri-arrow-right-s-line text-white"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Шаг 2 (изначально скрыт) -->
+          <div id="step2" class="hidden space-y-4 border-r border-gray-200 px-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 2: Выбор машины</h3>
+            <div>
+              <p class="text-sm text-gray-600 mb-2">Пассажиры:</p>
+              <div class="flex space-x-2">
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="0"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="1"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="2"
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="3"
+                >
+                  3
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="4"
+                >
+                  4
+                </button>
+                <button
+                  type="button"
+                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="5"
+                >
+                  5
+                </button>
+              </div>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-2">Грузчики:</p>
+              <div class="flex space-x-2">
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="0"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="1"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="2"
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
+                  data-value="3"
+                >
+                  3
+                </button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Высота</label>
+                <select
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option>Любая</option>
+                  <option>1.8 м</option>
+                  <option>2.0 м</option>
+                  <option>2.2 м</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Длина</label>
+                <select
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  <option>Любая</option>
+                  <option>3 м</option>
+                  <option>4 м</option>
+                  <option>5 м</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Кузов</label>
+              <select
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+              >
+                <option>Любая</option>
+                <option>Тент</option>
+                <option>Фургон</option>
+                <option>Борт</option>
+              </select>
+            </div>
+            <button
+              class="w-full text-left text-primary flex items-center mt-4 transition-colors hover:text-primary/80"
+            >
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Дополнительные услуги</span>
+            </button>
+            <div class="mt-4" x-data="{ currentSlide: 0, totalSlides: 2 }">
+              <p class="text-sm text-gray-600 mb-2">Вам подходит:</p>
+              <div class="border border-gray-200 rounded p-4">
+                <!-- Контейнер для слайдов -->
+                <div class="relative overflow-hidden min-h-[65px] max-h-[70px]">
+                  <div class="relative h-full">
+                    <!-- Слайд 1 -->
+                    <div 
+                      x-show="currentSlide === 0"
+                      x-transition:enter="transition ease-out duration-300"
+                      x-transition:enter-start="opacity-0 translate-x-full"
+                      x-transition:enter-end="opacity-100 translate-x-0"
+                      x-transition:leave="transition ease-in duration-200"
+                      x-transition:leave-start="opacity-100 translate-x-0"
+                      x-transition:leave-end="opacity-0 -translate-x-full"
+                      class="flex justify-between items-top absolute inset-0"
+                    >
+                      <div>
+                        <p class="font-bold text-gray-800">Любая</p>
+                        <p class="text-sm text-gray-600">2.2 м</p>
+                        <p class="text-sm text-gray-600">2 пасс</p>
+                      </div>
+                      <img
+                        src="{{ url_for('static', filename='img/prof_ekipazh.png') }}"
+                        alt="Delivery Van"
+                        class="w-24 h-16 object-cover rounded transition-transform duration-300 hover:scale-105"
+                      />
+                    </div>
+                    
+                    <!-- Слайд 2 -->
+                    <div 
+                      x-show="currentSlide === 1"
+                      x-transition:enter="transition ease-out duration-300"
+                      x-transition:enter-start="opacity-0 translate-x-full"
+                      x-transition:enter-end="opacity-100 translate-x-0"
+                      x-transition:leave="transition ease-in duration-200"
+                      x-transition:leave-start="opacity-100 translate-x-0"
+                      x-transition:leave-end="opacity-0 -translate-x-full"
+                      class="flex justify-between items-top absolute inset-0"
+                    >
+                      <div>
+                        <p class="font-bold text-gray-800">Газель</p>
+                        <p class="text-sm text-gray-600">3.0 м</p>
+                        <p class="text-sm text-gray-600">1 пасс</p>
+                      </div>
+                      <img
+                        src="{{ url_for('static', filename='img/prof_ekipazh.png') }}"
+                        alt="Delivery Van"
+                        class="w-24 h-16 object-cover rounded transition-transform duration-300 hover:scale-105"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex justify-between items-center text-sm text-gray-600 mt-4">
+                  <span x-text="(currentSlide + 1) + '/' + totalSlides"></span>
+                  <div class="flex space-x-2">
+                    <button
+                      @click="currentSlide = currentSlide === 0 ? totalSlides - 1 : currentSlide - 1"
+                      class="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors transition-transform hover:scale-110"
+                    >
+                      <i class="ri-arrow-left-s-line"></i>
+                    </button>
+                    <button
+                      @click="currentSlide = (currentSlide + 1) % totalSlides"
+                      class="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors transition-transform hover:scale-110"
+                    >
+                      <i class="ri-arrow-right-s-line"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Шаг 3 (изначально скрыт) -->
+          <div id="step3" class="hidden space-y-4 pl-6">
+            <h3 class="font-bold text-gray-800 mb-4">Шаг 3: Оформить заказ</h3>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Имя</label>
+              <input
+                type="text"
+                placeholder="Ваше имя"
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-600 mb-1">Телефон</label>
+              <input
+                type="tel"
+                placeholder="Ваш телефон"
+                class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <p class="block text-sm text-gray-600 mb-2">Оплата:</p>
+              <div class="flex space-x-4">
+                <label class="flex items-center">
+                  <input type="radio" name="payment" class="hidden" />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-transparent absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>Наличными</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="payment" class="hidden" checked />
+                  <span
+                    class="w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center mr-2 relative"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full bg-primary absolute transition-all duration-200"
+                    ></span>
+                  </span>
+                  <span>Онлайн оплата</span>
+                </label>
+              </div>
+            </div>
+            <button class="text-primary flex items-center transition-colors hover:text-primary/80">
+              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
+              <span>Примечания к заказу</span>
+            </button>
+            <div class="mt-4 space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Обычная цена</span>
+                <span class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Скидка</span>
+                <span class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between font-bold mt-4">
+                <span>Итого:</span>
+                <span>0 ₽</span>
+              </div>
+              <div class="text-right text-sm text-gray-600">
+                <span>Доп час: 0 ₽</span>
+              </div>
+            </div>
+            <button
+              class="w-full bg-primary text-white py-3 rounded-button mt-4 transition-transform hover:scale-[1.02] shadow-md hover:shadow-lg"
+            >
+              Оформить сейчас
+            </button>
+            <p class="text-xs text-gray-600 mt-4 text-center">
+              Нажимая кнопку «Оформить сейчас», вы соглашаетесь с политикой
+              обработки ваших персональных данных
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Галерея работ (изначально скрыта) -->
+      <div id="worksGallery" class="hidden w-full rounded-lg shadow-sm max-w-5xl mx-auto mt-8">
+        <div class="p-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-6">Фото и видео работы компании</h2>
+          
+          <!-- Фото галерея -->
+          <div class="mb-12">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Фотогалерея</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 1"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 2"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 3"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 4"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 5"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+              <div class="gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Пример работы 6"
+                  class="w-full h-full object-cover"
+                >
+              </div>
+            </div>
+          </div>
+          
+          <!-- Видео галерея -->
+          <div>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Видеогалерея</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="video-thumbnail gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Видео работы 1"
+                  class="w-full h-full object-cover"
+                >
+                <button class="video-play-btn">
+                  <i class="ri-play-fill text-xl text-gray-800"></i>
+                </button>
+              </div>
+              <div class="video-thumbnail gallery-item bg-gray-100 rounded-lg overflow-hidden h-64 transition-transform duration-300 hover:scale-105">
+                <img 
+                  src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                  alt="Видео работы 2"
+                  class="w-full h-full object-cover"
+                >
+                <button class="video-play-btn">
+                  <i class="ri-play-fill text-xl text-gray-800"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Social Media Section -->
+      <div
+        class="mt-12 flex flex-col md:flex-row items-center justify-between bg-white p-6 rounded-lg shadow-sm max-w-5xl mx-auto"
+      >
+        <div class="mb-4 md:mb-0">
+          <h3 class="text-lg font-bold text-gray-800 mb-2">
+            Проф.Экипаж в соцсетях
+          </h3>
+          <p class="text-gray-600">
+            Следите за нашими новостями и акциями
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-4">
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-vk-fill mr-2 text-xl"></i>
+            <span>ВКонтакте</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-telegram-fill mr-2 text-xl"></i>
+            <span>Telegram</span>
+          </a>
+          <a
+            href="#"
+            class="flex items-center px-6 py-2 border border-gray-200 rounded-button transition-transform hover:scale-105"
+          >
+            <i class="ri-youtube-fill mr-2 text-xl"></i>
+            <span>YouTube</span>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Promo Cards -->
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <!-- Discount Card -->
+        <div
+          class="promo-secondary rounded-lg p-6 shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02]"
+        >
+          <div class="relative z-10">
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">
+              Скидка 40% при заказе<br />на сайте или в приложении
+            </h3>
+            <p class="text-gray-700 mt-4">
+              Грузоперевозки по Ленинградской области дешево – это реальность! Оформите заказ
+              на сайте или в приложении и получите скидку.
+            </p>
+          </div>
+          <div class="absolute right-0 bottom-0 w-1/3 h-1/2">
+            <!-- <div
+              style="background-image: url('https://readdy.ai/api/search-image?query=cardboard%20boxes%20with%20delivery%20symbols%2C%20minimalist%20design%20on%20yellow%20background%2C%20simple%20graphic%20illustration&width=200&height=200&seq=2&orientation=squarish');"
+              class="w-full h-full bg-no-repeat bg-contain bg-right-bottom"
+            ></div> -->
+          </div>
+        </div>
+        
+        <!-- Unlimited Card -->
+        <div
+          class="promo-primary rounded-lg p-6 shadow-sm relative overflow-hidden transition-transform hover:scale-[1.02]"
+        >
+          <div class="relative z-10">
+            <h3 class="text-2xl font-bold text-white mb-2">Безлимит в пути</h3>
+            <p class="text-white mt-4">
+              Мы отменили счетчики! Стоимость поездки теперь фиксированная, а
+              это значит, как бы ни складывалась дорожная обстановка и сколько
+              бы пробок не встретилось на пути.
+            </p>
+          </div>
+          <div class="absolute right-0 bottom-0 w-1/3 h-1/2">
+            <!-- <div
+              style="background-image: url('https://readdy.ai/api/search-image?query=map%20with%20route%20markers%20and%20navigation%20symbols%20on%20red%20background%2C%20minimalist%20design%2C%20simple%20graphic%20illustration&width=200&height=200&seq=3&orientation=squarish');"
+              class="w-full h-full bg-no-repeat bg-contain bg-right-bottom"
+            ></div> -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- New Detailed Description Block -->
+      <div class="mt-8 bg-white rounded-lg shadow-sm p-8 max-w-5xl mx-auto relative overflow-hidden">
+        <div class="flex flex-col md:flex-row">
+          <div class="md:w-2/3 pr-8">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">Профессиональные грузоперевозки по Санкт-Петербургу и Ленинградской области</h2>
+            <p class="text-gray-700 mb-8">
+              Компания "Проф.Экипаж" - это надежные грузоперевозки с гарантией сохранности ваших вещей. 
+              Мы работаем с любыми типами грузов - от небольших посылок до мебели и строительных материалов. 
+              В нашем распоряжении современный автопарк и квалифицированные специалисты, которые аккуратно 
+              выполнят погрузку, транспортировку и разгрузку вашего имущества.
+            </p>
+            
+            <div class="grid grid-cols-2 gap-6">
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-box-2-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Хрупкие и ценные грузы</p>
+                  <p class="text-sm text-gray-600">Используем профессиональную упаковку для безопасной перевозки</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-steering-2-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Опытные водители</p>
+                  <p class="text-sm text-gray-600">Аккуратно управляют автомобилем и знают лучшие маршруты</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-coupon-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Прозрачное ценообразование</p>
+                  <p class="text-sm text-gray-600">Фиксированная стоимость без скрытых платежей</p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-4 transition-transform hover:scale-110">
+                  <i class="ri-timer-line text-primary"></i>
+                </div>
+                <div>
+                  <p class="font-medium text-gray-800">Быстрая подача транспорта</p>
+                  <p class="text-sm text-gray-600">Машина будет у вас в течение 20 минут если потребуется срочная перевозка</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="md:w-1/3 mt-6 md:mt-0">
+            <div class="h-64 bg-gray-100 rounded-lg overflow-hidden">
+              <img 
+                src="{{ url_for('static', filename='img/prof_ekipazh.png') }}" 
+                alt="Профессиональные грузоперевозки"
+                class="w-full h-full object-cover"
+              >
+            </div>
+            
+            <div class="mt-6">
+              <h3 class="font-bold text-lg text-gray-800">Почему выбирают нас</h3>
+              <div class="relative">
+                <div class="text-gray-700 mt-2 overflow-hidden transition-all duration-300 max-h-[4.5em] relative" id="expandableText">
+                  <p>Наша команда обеспечивает полный цикл грузоперевозок - от консультации до разгрузки. Мы тщательно планируем маршруты с учетом загруженности дорог, подбираем транспорт в зависимости от характеристик груза. Все водители имеют стаж работы от 5 лет и отлично ориентируются в Санкт-Петербургу и Ленинградской области. Для защиты ваших вещей используем качественные упаковочные материалы. Стоимость услуги фиксируется в договоре и не меняется в процессе. Также мы можем организовать временное хранение груза на нашем складе. Каждый сотрудник проходит обучение и проверку перед выходом на работу.</p>
+                  
+                  <!-- Градиент для плавного исчезновения текста -->
+                  <div class="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none" id="fadeOverlay"></div>
+                </div>
+                
+                <button id="expandTextBtn" class="absolute bottom-0 right-0 flex items-center justify-center w-8 h-8 bg-white rounded-full shadow-sm transform translate-y-1/2 transition-transform hover:scale-110" onclick="toggleText()">
+                  <i class="ri-arrow-down-s-line text-gray-600" id="expandIcon"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <div class="footer-spacer"></div>
+    
+    <footer>
+      <div class="max-w-6xl mx-auto px-4 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <!-- Колонка 1: Контакты -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Контакты</h3>
+            <ul class="space-y-2">
+              <li class="flex items-center">
+                <i class="ri-phone-line mr-2"></i>
+                <span>8 (800) 555-3535</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-mail-line mr-2"></i>
+                <span>info@prof-ekipazh.ru</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-map-pin-line mr-2"></i>
+                <span>Санкт-Петербург, ул. Грузовая, д. 5</span>
+              </li>
+              <li class="flex items-center">
+                <i class="ri-time-line mr-2"></i>
+                <span>Круглосуточно, без выходных</span>
+              </li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 2: Услуги -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Услуги</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="hover:text-primary transition-colors">Квартирный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Офисный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Дачный переезд</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Перевозка мебели</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Перевозка техники</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Строительные перевозки</a></li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 3: Компания -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Компания</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="hover:text-primary transition-colors">О нас</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Тарифы</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Отзывы</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Вакансии</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Партнерам</a></li>
+              <li><a href="#" class="hover:text-primary transition-colors">Контакты</a></li>
+            </ul>
+          </div>
+          
+          <!-- Колонка 4: Подписка -->
+          <div>
+            <h3 class="text-lg font-bold mb-4">Подписка</h3>
+            <p class="mb-4">Узнавайте первыми о скидках и акциях</p>
+            <div class="flex mb-4">
+              <input 
+                type="email" 
+                placeholder="Ваш email" 
+                class="px-4 py-2 rounded-l w-full focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+              <button class="bg-primary px-4 py-2 rounded-r transition-transform hover:scale-105">
+                <i class="ri-send-plane-line"></i>
+              </button>
+            </div>
+            <div class="flex space-x-4">
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-vk-fill"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-telegram-fill"></i>
+              </a>
+              <a href="#" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center hover:bg-primary transition-colors transition-transform hover:scale-110">
+                <i class="ri-youtube-fill"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <div class="mb-4 md:mb-0">
+            <p>&copy; 2025 "Проф.Экипаж". Все права защищены.</p>
+          </div>
+          <div class="flex flex-wrap gap-4">
+            <a href="#" class="text-sm hover:text-primary transition-colors">Политика конфиденциальности</a>
+            <a href="#" class="text-sm hover:text-primary transition-colors">Пользовательское соглашение</a>
+            <a href="#" class="text-sm hover:text-primary transition-colors">Карта сайта</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
+```
+
+app/static/js/main.js:
+```
+// Обработка радиокнопок
+document.addEventListener("DOMContentLoaded", function () {
+  const radioButtons = document.querySelectorAll(
+    'input[type="radio"][name="time"], input[type="radio"][name="payment"]',
+  );
+  
+  radioButtons.forEach((radio) => {
+    radio.addEventListener("change", function () {
+      const name = this.getAttribute("name");
+      const radios = document.querySelectorAll(
+        `input[type="radio"][name="${name}"]`,
+      );
+      
+      radios.forEach((rb) => {
+        const indicator = rb.nextElementSibling.querySelector("span");
+        indicator.classList.remove("bg-primary");
+        indicator.classList.add("bg-transparent");
+      });
+      
+      if (this.checked) {
+        const indicator = this.nextElementSibling.querySelector("span");
+        indicator.classList.remove("bg-transparent");
+        indicator.classList.add("bg-primary");
+      }
+    });
+  });
+});
+
+// Обработка кнопок пассажиров/грузчиков
+document.addEventListener("DOMContentLoaded", function() {
+  const passengerBtns = document.querySelectorAll('.passenger-btn');
+  passengerBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      passengerBtns.forEach(b => b.classList.remove('bg-primary', 'text-white'));
+      this.classList.add('bg-primary', 'text-white');
+    });
+  });
+
+  const loaderBtns = document.querySelectorAll('.loader-btn');
+  loaderBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      loaderBtns.forEach(b => b.classList.remove('bg-primary', 'text-white'));
+      this.classList.add('bg-primary', 'text-white');
+    });
+  });
+});
+
+// Карусель новостей
+document.addEventListener("DOMContentLoaded", function() {
+  const carousel = document.querySelector('.carousel-slides');
+  const dots = document.querySelectorAll('.carousel-dot');
+  const prevBtn = document.querySelector('.carousel-prev');
+  const nextBtn = document.querySelector('.carousel-next');
+  let currentIndex = 0;
+  const slideCount = document.querySelectorAll('.carousel-slide').length;
+
+  function updateCarousel() {
+    carousel.style.transform = `translateX(-${currentIndex * 100}%)`;
+    dots.forEach((dot, index) => {
+      if (index === currentIndex) {
+        dot.style.backgroundColor = 'white';
+        dot.style.width = '8px';
+        dot.style.borderRadius = '4px';
+      } else {
+        dot.style.backgroundColor = '';
+        dot.style.width = '';
+        dot.style.borderRadius = '';
+      }
+    });
+  }
+
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      currentIndex = parseInt(dot.dataset.index);
+      updateCarousel();
+    });
+  });
+
+  prevBtn.addEventListener('click', () => {
+    currentIndex = (currentIndex - 1 + slideCount) % slideCount;
+    updateCarousel();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    currentIndex = (currentIndex + 1) % slideCount;
+    updateCarousel();
+  });
+
+  // Автопрокрутка
+  setInterval(() => {
+    currentIndex = (currentIndex + 1) % slideCount;
+    updateCarousel();
+  }, 5000);
+});
+
+// Показываем шаги калькулятора при вводе
+document.addEventListener("DOMContentLoaded", function() {
+  const step1Inputs = document.querySelectorAll('#step1 input');
+  const newsCarousel = document.getElementById('newsCarousel');
+  const step2 = document.getElementById('step2');
+  const step3 = document.getElementById('step3');
+
+  step1Inputs.forEach(input => {
+    input.addEventListener('input', function() {
+      if (this.value.trim() !== '') {
+        newsCarousel.classList.add('hidden');
+        step2.classList.remove('hidden');
+        step3.classList.remove('hidden');
+        step2.classList.add('md:col-span-1');
+        step3.classList.add('md:col-span-1');
+      } else {
+        const allEmpty = Array.from(step1Inputs).every(i => i.value.trim() === '');
+        if (allEmpty) {
+          newsCarousel.classList.remove('hidden');
+          step2.classList.add('hidden');
+          step3.classList.add('hidden');
+          step2.classList.remove('md:col-span-1');
+          step3.classList.remove('md:col-span-1');
+        }
+      }
+    });
+  });
+});
+
+// Переключение темы
+document.addEventListener("DOMContentLoaded", function () {
+  const themeToggle = document.getElementById("themeToggle");
+  const html = document.documentElement;
+  
+  // Проверка системных настроек
+  const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+  
+  // Установка начальной темы
+  if (prefersDarkScheme.matches) {
+    html.classList.add('dark');
+  } else {
+    html.classList.remove('dark');
+  }
+  
+  // Обработка сохраненной темы
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    html.classList.add('dark');
+  } else if (savedTheme === 'light') {
+    html.classList.remove('dark');
+  }
+  
+  // Переключение темы
+  themeToggle.addEventListener("click", function() {
+    html.classList.toggle("dark");
+    localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+  });
+});
+
+// Развертывание текста
+function toggleText() {
+  const textElement = document.getElementById('expandableText');
+  const fadeElement = document.getElementById('fadeOverlay');
+  const iconElement = document.getElementById('expandIcon');
+  
+  if (textElement.classList.contains('max-h-[4.5em]')) {
+    textElement.classList.remove('max-h-[4.5em]');
+    textElement.classList.add('max-h-[1000px]');
+    fadeElement.classList.add('hidden');
+    iconElement.className = 'ri-arrow-up-s-line text-gray-600';
+  } else {
+    textElement.classList.remove('max-h-[1000px]');
+    textElement.classList.add('max-h-[4.5em]');
+    fadeElement.classList.remove('hidden');
+    iconElement.className = 'ri-arrow-down-s-line text-gray-600';
+  }
+}
+
+// Переключение между калькулятором и галереей работ
+document.addEventListener("DOMContentLoaded", function() {
+  const calculatorContainer = document.getElementById('calculatorContainer');
+  const worksGallery = document.getElementById('worksGallery');
+  const calculatorTab = document.querySelector('.calculator-tab');
+  const worksTab = document.querySelector('.works-tab');
+  
+  function switchTab(tab) {
+    calculatorTab.classList.remove('active-tab');
+    worksTab.classList.remove('active-tab');
+    tab.classList.add('active-tab');
+    
+    if (tab === calculatorTab) {
+      calculatorContainer.classList.remove('hidden');
+      worksGallery.classList.add('hidden');
+    } else {
+      calculatorContainer.classList.add('hidden');
+      worksGallery.classList.remove('hidden');
+    }
+  }
+  
+  calculatorTab.addEventListener('click', function(e) {
+    e.preventDefault();
+    switchTab(this);
+  });
+  
+  worksTab.addEventListener('click', function(e) {
+    e.preventDefault();
+    switchTab(this);
+  });
+});
+```
+
+app/static/css/style.css:
+```
+/* CSS переменные для светлой темы */
+:root {
+  /* Основные цвета */
+  --color-primary: #d46a00;
+  --color-secondary: #f4c999;
+  --color-text-primary: #0b0f13;
+  --color-text-secondary: #1a1d21;
+  --color-text-tertiary: #2c2f32;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-border: #202020;
+  --color-overlay: linear-gradient(to top, rgba(255, 255, 255, 0.3), transparent);
+  
+  /* Компоненты */
+  --header-bg: rgba(255, 255, 255, 0.5);
+  --header-border: #f3f4f6;
+  --footer-bg: #1f2937;
+  --footer-text: #f9fafb;
+  --footer-border: #374151;
+  --footer-input-bg: #374151;
+  --footer-input-border: #4b5563;
+  
+  /* Калькулятор */
+  --calc-bg: rgba(255, 255, 255, 0.5);
+  --calc-border: #202020;
+  --calc-section-border: #202020;
+  
+  /* Карточки */
+  --card-bg: rgba(255, 255, 255, 0.5);
+  --card-border: #0f0f10;
+  --promo-secondary: #f4c999;
+  --promo-primary: #d46a00;
+  
+  /* Новостной слайдер */
+  --carousel-dot: rgba(255, 255, 255, 0.5);
+  --carousel-nav-bg: rgba(255, 255, 255, 0.5);
+  --carousel-nav-color: #ffffff;
+
+  /* Тень для текста */
+  --text-shadow-light: 0 0 0px rgba(255, 255, 255, 0.0), 
+                      0 0 5px rgba(255, 255, 255, 0.3);
+  
+  /* Фон */
+  --fixed-bg-opacity: 0.7;
+  --fixed-bg-filter: brightness(1.2) saturate(1.5);
+}
+
+/* CSS переменные для темной темы */
+.dark {
+  /* Основные цвета */
+  --color-primary: #e58a2b;
+  --color-secondary: #3a2a24;
+  --color-text-primary: #f8e0c2;
+  --color-text-secondary: #e0c8b0;
+  --color-text-tertiary: #c8b09e;
+  --color-bg-primary: #121212;
+  --color-bg-secondary: #1e1a1a;
+  --color-bg-tertiary: #2d2a24;
+  --color-border: #2d2a24;
+  --color-overlay: linear-gradient(to top, #1e1a1a, transparent);
+  
+  /* Компоненты */
+  --header-bg: rgba(30, 26, 26, 0.7);
+  --header-border: #2d2a24;
+  --footer-bg: #1e1a1a;
+  --footer-text: #f0d9c9;
+  --footer-border: #3a2a24;
+  --footer-input-bg: #2a211b;
+  --footer-input-border: #3a2a24;
+  
+  /* Калькулятор */
+  --calc-bg: rgba(30, 26, 26, 0.7);
+  --calc-border: #2d2a24;
+  --calc-section-border: #2d2a24;
+  
+  /* Карточки */
+  --card-bg: rgba(30, 26, 26, 0.7);
+  --card-border: #2d2a24;
+  --promo-secondary: #3a2a24;
+  --promo-primary: #d46a00;
+  
+  /* Новостной слайдер */
+  --carousel-dot: rgba(255, 255, 255, 0.5);
+  --carousel-nav-bg: rgba(30, 26, 26, 0.3);
+  --carousel-nav-color: #ffffff;
+
+  /* Тень для текста */
+  --text-shadow-light: none;
+  
+  /* Фон */
+  --fixed-bg-opacity: 1;
+  --fixed-bg-filter: none;
+}
+
+/* Общие стили с использованием CSS переменных */
+body {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s, color 0.2s;
+  text-shadow: var(--text-shadow-light);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-wrap {
+  flex: 1 0 auto;
+}
+
+.footer-spacer {
+  height: 4rem;
+}
+
+footer {
+  flex-shrink: 0;
+}
+
+.fixed-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url('../img/prof_ekipazh_bg_ed.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  z-index: -1;
+  opacity: var(--fixed-bg-opacity);
+  filter: var(--fixed-bg-filter);
+  transition: opacity 0.5s ease, filter 0.5s ease;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="radio"] + span > span {
+  transition: all 0.2s;
+}
+
+.carousel-slide {
+  position: relative;
+}
+
+.carousel-dot.active {
+  background-color: white;
+  width: 8px;
+  border-radius: 4px;
+}
+
+.calculator-expanded {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.calculator-expanded > div {
+  border-right: 1px solid var(--calc-section-border);
+  padding-right: 2rem;
+}
+
+.calculator-expanded > div:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* Стили компонентов */
+header {
+  background-color: var(--header-bg);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--header-border);
+}
+
+.bg-white {
+  background-color: var(--card-bg) !important;
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary) !important;
+}
+
+.text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+.text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+.text-gray-600 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.border-gray-100 {
+  border-color: var(--color-border) !important;
+}
+
+.border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+.bg-gray-50 {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+}
+
+#fadeOverlay {
+  background: var(--color-overlay) !important;
+}
+
+input,
+select {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.passenger-btn.bg-primary,
+.loader-btn.bg-primary {
+  border-color: var(--color-primary);
+}
+
+footer {
+  background-color: var(--footer-bg);
+  color: var(--footer-text);
+}
+
+footer a {
+  color: var(--footer-text);
+}
+
+footer input {
+  background-color: var(--footer-input-bg);
+  color: var(--footer-text);
+  border-color: var(--footer-input-border);
+}
+
+footer input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+#calculatorContainer {
+  background-color: var(--calc-bg);
+  border: 1px solid var(--calc-border);
+}
+
+.promo-secondary {
+  background-color: var(--promo-secondary);
+}
+
+.promo-primary {
+  background-color: var(--promo-primary);
+}
+
+.carousel-dot {
+  background-color: var(--carousel-dot);
+}
+
+.carousel-prev,
+.carousel-next {
+  background-color: var(--carousel-nav-bg);
+  color: var(--carousel-nav-color);
+}
+
+.active-tab {
+  position: relative;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.active-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-primary);
+}
+
+.gallery-item {
+  transition: transform 0.5s ease;
+}
+
+.gallery-item:hover {
+  transform: scale(1.03);
+}
+
+.video-thumbnail {
+  position: relative;
+}
+
+.video-thumbnail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+.video-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  width: 50px;
+  height: 50px;
+  background: rgba(255,255,255,0.8);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.video-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.logo-container {
+  height: 5rem;
+}
+
+header > div:first-child {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+body,
+.fixed-background,
+header,
+footer,
+#calculatorContainer {
+  will-change: background-color, color, border-color;
+  backface-visibility: hidden;
+}
+
+body, button, input, select, textarea {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.passenger-btn, .loader-btn {
+  min-height: 40px;
+}
+
+.promo-secondary, .promo-primary {
+  min-height: 200px;
+}
+```
