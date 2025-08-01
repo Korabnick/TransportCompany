@@ -284,7 +284,26 @@ class CalculatorV2 {
         }
         
         if (pickupTimeInput) {
+            // Установка минимальной даты как текущей
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+            
+            pickupTimeInput.min = minDateTime;
+            
+            // Установка текущего времени как значения по умолчанию
+            pickupTimeInput.value = minDateTime;
+            
             pickupTimeInput.addEventListener('change', () => {
+                this.calculateStep1();
+            });
+            
+            // Обработка ввода времени
+            pickupTimeInput.addEventListener('input', () => {
                 this.calculateStep1();
             });
         }
@@ -994,4 +1013,174 @@ document.addEventListener('DOMContentLoaded', function() {
         window.calculatorV2 = new CalculatorV2();
         console.log('Calculator initialized:', window.calculatorV2);
     }, 100);
+    
+    // Инициализация функционала для кнопок "добавить адрес" и "примечания к заказу"
+    initializeAdditionalFeatures();
 });
+
+// Функционал для дополнительных кнопок
+function initializeAdditionalFeatures() {
+    // Функционал кнопки "добавить адрес"
+    const addAddressBtn = document.getElementById('addAddressBtn');
+    const additionalAddressesContainer = document.getElementById('additionalAddresses');
+    let addressCount = 0;
+    const maxAddresses = 3;
+    
+    if (addAddressBtn && additionalAddressesContainer) {
+        addAddressBtn.addEventListener('click', function() {
+            if (addressCount < maxAddresses) {
+                addAddressField();
+                addressCount++;
+                
+                // Скрываем кнопку, если достигнут лимит
+                if (addressCount >= maxAddresses) {
+                    addAddressBtn.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    function addAddressField() {
+        const addressField = document.createElement('div');
+        addressField.className = 'additional-address-field';
+        addressField.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <div class="flex-1">
+                    <label class="block text-sm text-gray-600 mb-1">Дополнительный адрес ${addressCount + 1}</label>
+                    <div class="relative">
+                        <input
+                            type="text"
+                            placeholder="Укажите адрес"
+                            class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                        >
+                            <i class="ri-map-pin-line"></i>
+                        </button>
+                    </div>
+                </div>
+                <button class="remove-address-btn text-red-500 hover:text-red-700 transition-colors mt-6" title="Удалить адрес">
+                    <i class="ri-delete-bin-line text-lg"></i>
+                </button>
+            </div>
+        `;
+        
+        // Добавляем обработчик для кнопки удаления
+        const removeBtn = addressField.querySelector('.remove-address-btn');
+        removeBtn.addEventListener('click', function() {
+            addressField.remove();
+            addressCount--;
+            
+            // Показываем кнопку "добавить адрес" снова
+            if (addAddressBtn) {
+                addAddressBtn.style.display = 'flex';
+            }
+            
+            // Обновляем нумерацию оставшихся полей
+            updateAddressNumbers();
+        });
+        
+        additionalAddressesContainer.appendChild(addressField);
+    }
+    
+    function updateAddressNumbers() {
+        const addressFields = additionalAddressesContainer.querySelectorAll('.additional-address-field');
+        addressFields.forEach((field, index) => {
+            const label = field.querySelector('label');
+            if (label) {
+                label.textContent = `Дополнительный адрес ${index + 1}`;
+            }
+        });
+    }
+    
+    // Функционал кнопки "примечания к заказу"
+    const orderNotesBtn = document.getElementById('orderNotesBtn');
+    const orderNotesPopup = document.getElementById('orderNotesPopup');
+    const closeOrderNotesPopup = document.getElementById('closeOrderNotesPopup');
+    const cancelOrderNotes = document.getElementById('cancelOrderNotes');
+    const saveOrderNotes = document.getElementById('saveOrderNotes');
+    const orderNotesText = document.getElementById('orderNotesText');
+    
+    if (orderNotesBtn && orderNotesPopup) {
+        orderNotesBtn.addEventListener('click', function() {
+            orderNotesPopup.classList.remove('hidden');
+            orderNotesText.focus();
+        });
+    }
+    
+    function closePopup() {
+        orderNotesPopup.classList.add('hidden');
+        orderNotesText.value = '';
+    }
+    
+    if (closeOrderNotesPopup) {
+        closeOrderNotesPopup.addEventListener('click', closePopup);
+    }
+    
+    if (cancelOrderNotes) {
+        cancelOrderNotes.addEventListener('click', closePopup);
+    }
+    
+    if (saveOrderNotes) {
+        saveOrderNotes.addEventListener('click', function() {
+            const notes = orderNotesText.value.trim();
+            if (notes) {
+                // Здесь можно сохранить примечания в переменную или отправить на сервер
+                console.log('Примечания к заказу:', notes);
+                
+                // Показываем уведомление о сохранении
+                showNotification('Примечания к заказу сохранены', 'success');
+            }
+            closePopup();
+        });
+    }
+    
+    // Закрытие popup при клике вне его
+    if (orderNotesPopup) {
+        orderNotesPopup.addEventListener('click', function(e) {
+            if (e.target === orderNotesPopup) {
+                closePopup();
+            }
+        });
+    }
+    
+    // Закрытие popup по клавише Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !orderNotesPopup.classList.contains('hidden')) {
+            closePopup();
+        }
+    });
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
+    
+    // Настройка стилей в зависимости от типа уведомления
+    if (type === 'success') {
+        notification.className += ' bg-green-500 text-white';
+    } else if (type === 'error') {
+        notification.className += ' bg-red-500 text-white';
+    } else {
+        notification.className += ' bg-blue-500 text-white';
+    }
+    
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Анимация появления
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 100);
+    
+    // Автоматическое удаление через 3 секунды
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+}
