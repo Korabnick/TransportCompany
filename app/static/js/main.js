@@ -333,6 +333,9 @@ class CalculatorV2 {
                 });
             }
         });
+        
+        // Обработка кнопки дополнительных услуг
+        this.bindAdditionalServicesEvents();
     }
     
     bindStep3Events() {
@@ -577,7 +580,7 @@ class CalculatorV2 {
         
         if (vehicles.length === 0) {
             console.log('No vehicles to display');
-            slidesContainer.innerHTML = '<div class="min-w-full flex items-center justify-center"><p class="text-gray-500 text-center py-8">Подходящий транспорт не найден</p></div>';
+            slidesContainer.innerHTML = '<div class="min-w-full flex items-center justify-center"><p class="text-gray-600 dark:text-gray-300 text-center py-8">Подходящий транспорт не найден</p></div>';
             dotsContainer.innerHTML = '';
             return;
         }
@@ -600,7 +603,7 @@ class CalculatorV2 {
                             <h4 class="font-bold text-gray-800 text-sm mb-1">${vehicle.name}</h4>
                             
                             <!-- Краткая информация -->
-                            <div class="space-y-1 text-xs text-gray-600 mb-2">
+                            <div class="space-y-1 text-xs text-gray-600 dark:text-gray-300 mb-2">
                                 <div class="flex items-center">
                                     <i class="ri-user-line mr-1"></i>
                                     <span>${vehicle.max_passengers + vehicle.max_loaders} чел.</span>
@@ -619,7 +622,7 @@ class CalculatorV2 {
                                 </div>
                                 <div class="flex items-center">
                                     <i class="ri-time-line mr-1"></i>
-                                    <span class="text-xs text-gray-500">+ ${vehicle.price_per_hour} ₽/час</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-300">+ ${vehicle.price_per_hour} ₽/час</span>
                                 </div>
                             </div>
                         </div>
@@ -648,12 +651,31 @@ class CalculatorV2 {
         const routeCostElement = document.getElementById('routeCost');
         const vehicleCostElement = document.getElementById('vehicleCost');
         const loadersCostElement = document.getElementById('loadersCost');
+        const additionalServicesCostElement = document.getElementById('additionalServicesCost');
+        const additionalServicesCostRow = document.getElementById('additionalServicesCostRow');
         const totalElement = document.getElementById('totalCost');
         
         if (routeCostElement) routeCostElement.textContent = `${Math.round(breakdown.route_cost)} ₽`;
         if (vehicleCostElement) vehicleCostElement.textContent = `${Math.round(breakdown.vehicle_cost)} ₽`;
         if (loadersCostElement) loadersCostElement.textContent = `${Math.round(breakdown.loaders_cost)} ₽`;
-        if (totalElement) totalElement.textContent = `${Math.round(breakdown.total)} ₽`;
+        
+        // Обновляем дополнительные услуги
+        const additionalCost = this.calculationData.additionalServicesCost || 0;
+        if (additionalServicesCostElement) {
+            additionalServicesCostElement.textContent = `${additionalCost} ₽`;
+        }
+        
+        if (additionalServicesCostRow) {
+            if (additionalCost > 0) {
+                additionalServicesCostRow.style.display = 'flex';
+            } else {
+                additionalServicesCostRow.style.display = 'none';
+            }
+        }
+        
+        // Обновляем итоговую стоимость
+        const totalCost = Math.round(breakdown.total) + additionalCost;
+        if (totalElement) totalElement.textContent = `${totalCost} ₽`;
     }
     
     initVehicleCarousel() {
@@ -739,6 +761,90 @@ class CalculatorV2 {
         if (step3 && step2) {
             step3.classList.remove('hidden');
             step3.classList.add('md:col-span-1');
+        }
+    }
+    
+    bindAdditionalServicesEvents() {
+        const additionalServicesBtn = document.getElementById('additionalServicesBtn');
+        const additionalServicesContent = document.getElementById('additionalServicesContent');
+        const additionalServicesIcon = document.getElementById('additionalServicesIcon');
+        
+        if (additionalServicesBtn && additionalServicesContent) {
+            additionalServicesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleAdditionalServices(additionalServicesContent, additionalServicesIcon);
+            });
+        }
+        
+        // Обработка чекбоксов дополнительных услуг
+        const driverDataCheckbox = document.getElementById('driverDataService');
+        const insuranceCheckbox = document.getElementById('insuranceService');
+        
+        if (driverDataCheckbox) {
+            driverDataCheckbox.addEventListener('change', () => {
+                this.updateAdditionalServicesCost();
+            });
+        }
+        
+        if (insuranceCheckbox) {
+            insuranceCheckbox.addEventListener('change', () => {
+                this.updateAdditionalServicesCost();
+            });
+        }
+    }
+    
+    toggleAdditionalServices(content, icon) {
+        const isHidden = content.classList.contains('hidden');
+        
+        if (isHidden) {
+            // Показываем контент
+            content.classList.remove('hidden');
+            content.style.maxHeight = '0';
+            content.style.overflow = 'hidden';
+            
+            // Плавная анимация
+            setTimeout(() => {
+                content.style.transition = 'max-height 0.3s ease-in-out';
+                content.style.maxHeight = content.scrollHeight + 'px';
+            }, 10);
+            
+            // Меняем иконку
+            icon.className = 'ri-remove-circle-line mr-2 transition-transform hover:scale-125';
+        } else {
+            // Скрываем контент
+            content.style.maxHeight = '0';
+            
+            setTimeout(() => {
+                content.classList.add('hidden');
+                content.style.transition = '';
+                content.style.maxHeight = '';
+            }, 300);
+            
+            // Меняем иконку
+            icon.className = 'ri-add-circle-line mr-2 transition-transform hover:scale-125';
+        }
+    }
+    
+    updateAdditionalServicesCost() {
+        const driverDataCheckbox = document.getElementById('driverDataService');
+        const insuranceCheckbox = document.getElementById('insuranceService');
+        
+        let totalAdditionalCost = 0;
+        
+        if (driverDataCheckbox && driverDataCheckbox.checked) {
+            totalAdditionalCost += 500;
+        }
+        
+        if (insuranceCheckbox && insuranceCheckbox.checked) {
+            totalAdditionalCost += 700;
+        }
+        
+        // Сохраняем стоимость дополнительных услуг
+        this.calculationData.additionalServicesCost = totalAdditionalCost;
+        
+        // Обновляем отображение стоимости (если третий шаг активен)
+        if (this.calculationData.step3 && this.calculationData.step3.breakdown) {
+            this.updateStep3Display(this.calculationData.step3);
         }
     }
     

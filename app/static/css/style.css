@@ -151,6 +151,21 @@ input[type="radio"] + span > span {
   transition: all 0.2s;
 }
 
+/* Стили для радиокнопок */
+input[type="radio"] + span {
+  border-color: var(--color-border) !important;
+}
+
+/* Невыбранные радиокнопки - прозрачные */
+input[type="radio"] + span > span {
+  background-color: transparent !important;
+}
+
+/* Выбранные радиокнопки */
+input[type="radio"]:checked + span > span {
+  background-color: var(--color-primary) !important;
+}
+
 .carousel-slide {
   position: relative;
 }
@@ -368,6 +383,38 @@ body, button, input, select, textarea {
 
 .passenger-btn, .loader-btn {
   min-height: 40px;
+  background-color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.passenger-btn:hover, .loader-btn:hover {
+  background-color: rgba(255, 255, 255, 0.7);
+  transform: scale(1.05);
+}
+
+.passenger-btn.bg-primary, .loader-btn.bg-primary {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+/* Темная тема для кнопок */
+.dark .passenger-btn, .dark .loader-btn {
+  background-color: rgba(30, 26, 26, 0.7);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-primary);
+}
+
+.dark .passenger-btn:hover, .dark .loader-btn:hover {
+  background-color: rgba(30, 26, 26, 0.9);
+}
+
+.dark .passenger-btn.bg-primary, .dark .loader-btn.bg-primary {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
 }
 
 .promo-secondary, .promo-primary {
@@ -408,6 +455,12 @@ body, button, input, select, textarea {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Темная тема для карточек транспорта */
+.dark .vehicle-card {
+  background-color: rgba(30, 26, 26, 0.7);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .vehicle-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
@@ -423,12 +476,34 @@ body, button, input, select, textarea {
 .vehicle-next {
   z-index: 10;
   transition: all 0.3s ease;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .vehicle-prev:hover,
 .vehicle-next:hover {
   background-color: var(--color-bg-primary) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Темная тема для кнопок навигации карусели */
+.dark .vehicle-prev,
+.dark .vehicle-next {
+  background-color: rgba(45, 42, 36, 0.9) !important;
+  color: var(--color-text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .vehicle-prev:hover,
+.dark .vehicle-next:hover {
+  background-color: rgba(60, 52, 48, 0.95) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .vehicle-dot {
@@ -439,6 +514,27 @@ body, button, input, select, textarea {
 .vehicle-dot:hover {
   background-color: var(--color-primary) !important;
   transform: scale(1.2);
+}
+
+/* Стили для дополнительных услуг */
+.additional-services-container {
+  transition: all 0.3s ease;
+}
+
+#additionalServicesContent {
+  transition: max-height 0.3s ease-in-out;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#additionalServicesContent.hidden {
+  max-height: 0;
+}
+
+/* Темная тема для дополнительных услуг */
+.dark #additionalServicesContent {
+  background-color: rgba(30, 26, 26, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Адаптивность для карусели */
@@ -455,5 +551,9 @@ body, button, input, select, textarea {
   .vehicle-next {
     width: 28px;
     height: 28px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }

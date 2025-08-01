@@ -421,12 +421,54 @@
                 <option value="board">Борт</option>
               </select>
             </div>
-            <button
-              class="w-full text-left text-primary flex items-center mt-4 transition-colors hover:text-primary/80"
-            >
-              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
-              <span>Дополнительные услуги</span>
-            </button>
+            <div class="additional-services-container">
+              <button
+                id="additionalServicesBtn"
+                class="w-full text-left text-primary flex items-center mt-4 transition-colors hover:text-primary/80"
+              >
+                <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125" id="additionalServicesIcon"></i>
+                <span>Дополнительные услуги</span>
+              </button>
+              
+              <!-- Скрытый блок с дополнительными услугами -->
+              <div id="additionalServicesContent" class="hidden mt-4 p-4 rounded-lg border border-gray-200" style="background-color: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px);">
+                <div class="space-y-4">
+                  <!-- Данные водителя -->
+                  <div class="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="driverDataService"
+                      class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <div class="flex-1">
+                      <label for="driverDataService" class="block text-sm font-medium text-gray-800 cursor-pointer">
+                        Данные водителя - 500 ₽
+                      </label>
+                      <p class="text-xs text-gray-600 mt-1">
+                        Выслать паспортные данные водителя для оформления пропуска
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- Страховка -->
+                  <div class="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="insuranceService"
+                      class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <div class="flex-1">
+                      <label for="insuranceService" class="block text-sm font-medium text-gray-800 cursor-pointer">
+                        Страховка на 100 000 ₽ - 700 ₽
+                      </label>
+                      <p class="text-xs text-gray-600 mt-1">
+                        В заказ включается страховка груза на 100 000 ₽
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="mt-4">
               <p class="text-sm text-gray-600 mb-2">Доступный транспорт:</p>
               <div id="vehiclesContainer" class="relative">
@@ -438,10 +480,10 @@
                 </div>
                 
                 <!-- Навигация карусели -->
-                <button class="vehicle-prev absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all hover:scale-110" id="vehiclePrev">
+                <button class="vehicle-prev absolute left-2 top-1/2 -translate-y-1/2 rounded-full shadow-lg transition-all hover:scale-110" id="vehiclePrev">
                   <i class="ri-arrow-left-s-line text-gray-600"></i>
                 </button>
-                <button class="vehicle-next absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all hover:scale-110" id="vehicleNext">
+                <button class="vehicle-next absolute right-2 top-1/2 -translate-y-1/2 rounded-full shadow-lg transition-all hover:scale-110" id="vehicleNext">
                   <i class="ri-arrow-right-s-line text-gray-600"></i>
                 </button>
                 
@@ -517,6 +559,10 @@
               <div class="flex justify-between text-sm">
                 <span class="text-gray-600">Стоимость грузчиков</span>
                 <span id="loadersCost" class="text-gray-800">0 ₽</span>
+              </div>
+              <div class="flex justify-between text-sm" id="additionalServicesCostRow" style="display: none;">
+                <span class="text-gray-600">Дополнительные услуги</span>
+                <span id="additionalServicesCost" class="text-gray-800">0 ₽</span>
               </div>
               <div class="flex justify-between font-bold mt-4">
                 <span>Итого:</span>
