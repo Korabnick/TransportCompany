@@ -659,3 +659,84 @@ body, button, input, select, textarea {
 #closeOrderNotesPopup:hover {
   color: var(--color-text-primary) !important;
 }
+
+/* Стили для автозаполнения адресов */
+.address-suggestions {
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.address-suggestions .suggestion-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.address-suggestions .suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.address-suggestions .suggestion-item:hover {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.address-suggestions .suggestion-item.bg-primary {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+/* Темная тема для автозаполнения */
+.dark .address-suggestions {
+    background-color: var(--color-bg-primary);
+    border-color: var(--color-border);
+}
+
+.dark .address-suggestions .suggestion-item {
+    color: var(--color-text-primary);
+    border-bottom-color: var(--color-border);
+}
+
+.dark .address-suggestions .suggestion-item:hover {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+/* Стили для полей ввода адресов */
+input[id*="Address"] {
+    position: relative;
+}
+
+/* Анимация появления подсказок */
+.address-suggestions {
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Стили для кнопок карты в полях адресов */
+.relative button[class*="map-pin"] {
+    transition: all 0.2s ease;
+}
+
+.relative button[class*="map-pin"]:hover {
+    color: var(--color-primary);
+    transform: scale(1.1);
+}

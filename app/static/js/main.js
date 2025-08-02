@@ -401,8 +401,10 @@ class CalculatorV2 {
     
     async calculateStep1() {
         try {
-            const fromAddress = document.getElementById('fromAddress')?.value || '';
-            const toAddress = document.getElementById('toAddress')?.value || '';
+            const fromAddressInput = document.getElementById('fromAddress');
+            const toAddressInput = document.getElementById('toAddress');
+            const fromAddress = fromAddressInput?.value || '';
+            const toAddress = toAddressInput?.value || '';
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
             const pickupTime = document.getElementById('pickupTime')?.value || '';
             const urgentPickup = document.getElementById('urgentPickup')?.checked || false;
@@ -410,29 +412,87 @@ class CalculatorV2 {
             if (!fromAddress || !toAddress || !pickupTime) {
                 return;
             }
-            
-            const data = {
-                from_address: fromAddress,
-                to_address: toAddress,
-                duration_hours: durationHours,
-                pickup_time: pickupTime,
-                urgent_pickup: urgentPickup
-            };
-            
-            const response = await this.makeRequest(`${this.baseUrl}/calculator/step1`, 'POST', data);
-            
-            if (response.success) {
-                this.calculationData.step1 = response.data;
-                this.updateStep1Display(response.data);
-                this.showStep2();
+
+            // Проверяем, есть ли координаты для адресов
+            const fromCoords = fromAddressInput?.dataset.lat && fromAddressInput?.dataset.lon ? 
+                { lat: parseFloat(fromAddressInput.dataset.lat), lon: parseFloat(fromAddressInput.dataset.lon) } : null;
+            const toCoords = toAddressInput?.dataset.lat && toAddressInput?.dataset.lon ? 
+                { lat: parseFloat(toAddressInput.dataset.lat), lon: parseFloat(toAddressInput.dataset.lon) } : null;
+
+            // Если есть координаты, используем OSRM для расчета маршрута
+            if (fromCoords && toCoords) {
+                await this.calculateRouteWithCoordinates([fromCoords, toCoords], durationHours, pickupTime, urgentPickup);
             } else {
-                this.showError('Ошибка расчета маршрута: ' + response.error);
+                // Иначе используем стандартный API
+                const data = {
+                    from_address: fromAddress,
+                    to_address: toAddress,
+                    duration_hours: durationHours,
+                    pickup_time: pickupTime,
+                    urgent_pickup: urgentPickup
+                };
+                
+                const response = await this.makeRequest(`${this.baseUrl}/calculator/step1`, 'POST', data);
+                
+                if (response.success) {
+                    this.calculationData.step1 = response.data;
+                    this.updateStep1Display(response.data);
+                    this.showStep2();
+                } else {
+                    this.showError('Ошибка расчета маршрута: ' + response.error);
+                }
             }
             
         } catch (error) {
             console.error('Step1 calculation error:', error);
             this.showError('Ошибка расчета маршрута');
         }
+    }
+
+    async calculateRouteWithCoordinates(coordinates, durationHours, pickupTime, urgentPickup) {
+        try {
+            const mapIntegration = new MapIntegration();
+            const route = await mapIntegration.calculateRoute(coordinates);
+            
+            if (route) {
+                // Создаем объект с данными маршрута
+                const routeData = {
+                    distance: route.distance,
+                    duration: route.duration,
+                    from_address: document.getElementById('fromAddress').value,
+                    to_address: document.getElementById('toAddress').value,
+                    coordinates: coordinates,
+                    duration_hours: durationHours,
+                    pickup_time: pickupTime,
+                    urgent_pickup: urgentPickup,
+                    total: this.calculateTotalCost(route.distance, durationHours, urgentPickup)
+                };
+                
+                this.calculationData.step1 = routeData;
+                this.updateStep1Display(routeData);
+                this.showStep2();
+            } else {
+                this.showError('Не удалось рассчитать маршрут. Попробуйте другие адреса.');
+            }
+        } catch (error) {
+            console.error('Ошибка расчета маршрута через OSRM:', error);
+            this.showError('Ошибка расчета маршрута. Попробуйте еще раз.');
+        }
+    }
+
+    calculateTotalCost(distance, durationHours, urgentPickup) {
+        // Базовая стоимость за километр
+        const baseCostPerKm = 50;
+        const baseCost = distance * baseCostPerKm;
+        
+        // Стоимость за час
+        const hourlyRate = 1000;
+        const hourlyCost = durationHours * hourlyRate;
+        
+        // Доплата за срочность
+        const urgentMultiplier = urgentPickup ? 1.3 : 1;
+        
+        return Math.round((baseCost + hourlyCost) * urgentMultiplier);
     }
     
     async filterVehicles() {
@@ -1004,9 +1064,275 @@ class CalculatorV2 {
     }
 }
 
+// Класс для интеграции с картами (Nominatim + OSRM)
+class MapIntegration {
+    constructor() {
+        this.nominatimBaseUrl = 'https://nominatim.openstreetmap.org';
+        this.osrmBaseUrl = 'https://router.project-osrm.org';
+        this.cache = new Map(); // Кэш для результатов поиска
+        this.searchTimeout = null;
+    }
+
+    // Поиск адресов через Nominatim
+    async searchAddresses(query, limit = 5) {
+        if (!query || query.length < 3) return [];
+        
+        const cacheKey = `search_${query}`;
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+
+        try {
+            const params = new URLSearchParams({
+                q: query,
+                format: 'json',
+                limit: limit,
+                addressdetails: 1,
+                countrycodes: 'ru', // Ограничиваем поиск Россией
+                viewbox: '29.5,60.0,31.0,60.5', // Примерные границы СПб и области
+                bounded: 1
+            });
+
+            const response = await fetch(`${this.nominatimBaseUrl}/search?${params}`);
+            const data = await response.json();
+
+            const results = data.map(item => ({
+                display_name: item.display_name,
+                lat: parseFloat(item.lat),
+                lon: parseFloat(item.lon),
+                type: item.type,
+                importance: item.importance
+            }));
+
+            this.cache.set(cacheKey, results);
+            return results;
+        } catch (error) {
+            console.error('Ошибка поиска адресов:', error);
+            return [];
+        }
+    }
+
+    // Получение адреса по координатам
+    async getAddressFromCoords(lat, lon) {
+        try {
+            const response = await fetch(
+                `${this.nominatimBaseUrl}/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`
+            );
+            const data = await response.json();
+            return data.display_name;
+        } catch (error) {
+            console.error('Ошибка получения адреса по координатам:', error);
+            return null;
+        }
+    }
+
+    // Расчет маршрута через OSRM
+    async calculateRoute(coordinates) {
+        if (coordinates.length < 2) return null;
+
+        try {
+            const coordsString = coordinates.map(coord => `${coord.lon},${coord.lat}`).join(';');
+            const response = await fetch(
+                `${this.osrmBaseUrl}/route/v1/driving/${coordsString}?overview=full&geometries=geojson`
+            );
+            const data = await response.json();
+
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                return {
+                    distance: route.distance / 1000, // Конвертируем в километры
+                    duration: route.duration / 60, // Конвертируем в минуты
+                    geometry: route.geometry,
+                    legs: route.legs
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Ошибка расчета маршрута:', error);
+            return null;
+        }
+    }
+
+    // Форматирование адреса для отображения
+    formatAddress(address) {
+        if (!address) return '';
+        
+        // Убираем лишние части адреса, оставляем только основные
+        const parts = address.split(', ');
+        if (parts.length > 3) {
+            return parts.slice(0, 3).join(', ');
+        }
+        return address;
+    }
+}
+
+// Класс для автозаполнения адресов
+class AddressAutocomplete {
+    constructor(inputId, suggestionsId) {
+        this.input = document.getElementById(inputId);
+        this.suggestionsContainer = document.getElementById(suggestionsId);
+        this.mapIntegration = new MapIntegration();
+        this.currentSuggestions = [];
+        this.selectedIndex = -1;
+        this.isOpen = false;
+        
+        if (this.input) {
+            this.init();
+        }
+    }
+
+    init() {
+        // Создаем контейнер для подсказок, если его нет
+        if (!this.suggestionsContainer) {
+            this.suggestionsContainer = document.createElement('div');
+            this.suggestionsContainer.id = this.input.id + 'Suggestions';
+            this.suggestionsContainer.className = 'address-suggestions absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-b-lg shadow-lg z-50 max-h-60 overflow-y-auto hidden';
+            this.input.parentNode.appendChild(this.suggestionsContainer);
+        }
+
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        // Обработка ввода
+        this.input.addEventListener('input', (e) => {
+            this.handleInput(e.target.value);
+        });
+
+        // Обработка клавиш
+        this.input.addEventListener('keydown', (e) => {
+            this.handleKeydown(e);
+        });
+
+        // Обработка фокуса
+        this.input.addEventListener('focus', () => {
+            if (this.currentSuggestions.length > 0) {
+                this.showSuggestions();
+            }
+        });
+
+        // Обработка клика вне поля
+        document.addEventListener('click', (e) => {
+            if (!this.input.contains(e.target) && !this.suggestionsContainer.contains(e.target)) {
+                this.hideSuggestions();
+            }
+        });
+    }
+
+    async handleInput(value) {
+        if (value.length < 3) {
+            this.hideSuggestions();
+            return;
+        }
+
+        // Очищаем предыдущий таймаут
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+
+        // Устанавливаем новый таймаут для debounce
+        this.searchTimeout = setTimeout(async () => {
+            const suggestions = await this.mapIntegration.searchAddresses(value);
+            this.currentSuggestions = suggestions;
+            this.selectedIndex = -1;
+            
+            if (suggestions.length > 0) {
+                this.showSuggestions();
+                this.renderSuggestions();
+            } else {
+                this.hideSuggestions();
+            }
+        }, 300);
+    }
+
+    handleKeydown(e) {
+        if (!this.isOpen) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                this.selectedIndex = Math.min(this.selectedIndex + 1, this.currentSuggestions.length - 1);
+                this.updateSelection();
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+                this.updateSelection();
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (this.selectedIndex >= 0) {
+                    this.selectSuggestion(this.selectedIndex);
+                }
+                break;
+            case 'Escape':
+                this.hideSuggestions();
+                break;
+        }
+    }
+
+    renderSuggestions() {
+        this.suggestionsContainer.innerHTML = '';
+        
+        this.currentSuggestions.forEach((suggestion, index) => {
+            const item = document.createElement('div');
+            item.className = 'suggestion-item px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors';
+            item.textContent = this.mapIntegration.formatAddress(suggestion.display_name);
+            
+            item.addEventListener('click', () => {
+                this.selectSuggestion(index);
+            });
+            
+            this.suggestionsContainer.appendChild(item);
+        });
+    }
+
+    updateSelection() {
+        const items = this.suggestionsContainer.querySelectorAll('.suggestion-item');
+        items.forEach((item, index) => {
+            if (index === this.selectedIndex) {
+                item.classList.add('bg-primary', 'text-white');
+            } else {
+                item.classList.remove('bg-primary', 'text-white');
+            }
+        });
+    }
+
+    selectSuggestion(index) {
+        if (index >= 0 && index < this.currentSuggestions.length) {
+            const suggestion = this.currentSuggestions[index];
+            this.input.value = this.mapIntegration.formatAddress(suggestion.display_name);
+            
+            // Сохраняем координаты в data-атрибутах
+            this.input.dataset.lat = suggestion.lat;
+            this.input.dataset.lon = suggestion.lon;
+            
+            this.hideSuggestions();
+            
+            // Триггерим событие изменения для пересчета маршрута
+            this.input.dispatchEvent(new Event('change'));
+        }
+    }
+
+    showSuggestions() {
+        this.suggestionsContainer.classList.remove('hidden');
+        this.isOpen = true;
+    }
+
+    hideSuggestions() {
+        this.suggestionsContainer.classList.add('hidden');
+        this.isOpen = false;
+        this.selectedIndex = -1;
+    }
+}
+
 // Инициализация калькулятора при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing calculator...');
+    
+    // Инициализация автозаполнения для основных полей адресов
+    window.fromAddressAutocomplete = new AddressAutocomplete('fromAddress', 'fromAddressSuggestions');
+    window.toAddressAutocomplete = new AddressAutocomplete('toAddress', 'toAddressSuggestions');
     
     // Небольшая задержка для полной загрузки DOM
     setTimeout(() => {
@@ -1043,21 +1369,27 @@ function initializeAdditionalFeatures() {
     function addAddressField() {
         const addressField = document.createElement('div');
         addressField.className = 'additional-address-field';
+        const fieldId = `additionalAddress${addressCount + 1}`;
+        const suggestionsId = `additionalAddress${addressCount + 1}Suggestions`;
+        
         addressField.innerHTML = `
             <div class="flex items-center space-x-2">
                 <div class="flex-1">
                     <label class="block text-sm text-gray-600 mb-1">Дополнительный адрес ${addressCount + 1}</label>
                     <div class="relative">
                         <input
+                            id="${fieldId}"
                             type="text"
                             placeholder="Укажите адрес"
                             class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                            autocomplete="off"
                         />
                         <button
                             class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
                         >
                             <i class="ri-map-pin-line"></i>
                         </button>
+                        <div id="${suggestionsId}" class="address-suggestions absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-b-lg shadow-lg z-50 max-h-60 overflow-y-auto hidden"></div>
                     </div>
                 </div>
                 <button class="remove-address-btn text-red-500 hover:text-red-700 transition-colors mt-6" title="Удалить адрес">
@@ -1082,14 +1414,34 @@ function initializeAdditionalFeatures() {
         });
         
         additionalAddressesContainer.appendChild(addressField);
+        
+        // Инициализируем автозаполнение для нового поля
+        const newInput = document.getElementById(fieldId);
+        if (newInput) {
+            new AddressAutocomplete(fieldId, suggestionsId);
+        }
     }
     
     function updateAddressNumbers() {
         const addressFields = additionalAddressesContainer.querySelectorAll('.additional-address-field');
         addressFields.forEach((field, index) => {
             const label = field.querySelector('label');
+            const input = field.querySelector('input');
+            const suggestions = field.querySelector('.address-suggestions');
+            
             if (label) {
                 label.textContent = `Дополнительный адрес ${index + 1}`;
+            }
+            
+            // Обновляем ID поля и контейнера подсказок
+            if (input) {
+                const newId = `additionalAddress${index + 1}`;
+                input.id = newId;
+            }
+            
+            if (suggestions) {
+                const newSuggestionsId = `additionalAddress${index + 1}Suggestions`;
+                suggestions.id = newSuggestionsId;
             }
         });
     }
