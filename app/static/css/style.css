@@ -740,3 +740,42 @@ input[id*="Address"] {
     color: var(--color-primary);
     transform: scale(1.1);
 }
+
+/* Стили для валидации даты и времени */
+input[type="datetime-local"]:invalid {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px #ef4444;
+}
+
+input[type="datetime-local"]:invalid:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px #ef4444;
+}
+
+.dark input[type="datetime-local"]:invalid {
+    border-color: #f87171;
+    box-shadow: 0 0 0 1px #f87171;
+}
+
+.dark input[type="datetime-local"]:invalid:focus {
+    border-color: #f87171;
+    box-shadow: 0 0 0 1px #f87171;
+}
+
+/* Стили для сообщений об ошибках валидации */
+.validation-error {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.dark .validation-error {
+    color: #f87171;
+}
+
+.validation-error i {
+    font-size: 1rem;
+}

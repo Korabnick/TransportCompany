@@ -284,27 +284,71 @@ class CalculatorV2 {
         }
         
         if (pickupTimeInput) {
-            // Установка минимальной даты как текущей
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+            // Функция для обновления минимальной даты
+            const updateMinDateTime = () => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                
+                pickupTimeInput.min = minDateTime;
+                
+                // Проверяем, не меньше ли текущее значение минимальной даты
+                if (pickupTimeInput.value && pickupTimeInput.value < minDateTime) {
+                    pickupTimeInput.value = minDateTime;
+                }
+            };
             
-            pickupTimeInput.min = minDateTime;
+            // Устанавливаем минимальную дату при инициализации
+            updateMinDateTime();
             
-            // Установка текущего времени как значения по умолчанию
-            pickupTimeInput.value = minDateTime;
+            // Устанавливаем текущее время как значение по умолчанию
+            pickupTimeInput.value = pickupTimeInput.min;
             
+            // Обновляем минимальную дату каждую минуту
+            setInterval(updateMinDateTime, 60000);
+            
+            // Валидация при изменении значения
             pickupTimeInput.addEventListener('change', () => {
+                const selectedDateTime = new Date(pickupTimeInput.value);
+                const now = new Date();
+                
+                if (selectedDateTime < now) {
+                    // Если выбрана прошедшая дата, устанавливаем текущее время
+                    updateMinDateTime();
+                    pickupTimeInput.value = pickupTimeInput.min;
+                    this.showError('Нельзя выбрать прошедшую дату. Установлено текущее время.');
+                } else {
+                    this.calculateStep1();
+                }
+            });
+            
+            // Валидация при вводе
+            pickupTimeInput.addEventListener('input', () => {
+                const selectedDateTime = new Date(pickupTimeInput.value);
+                const now = new Date();
+                
+                if (selectedDateTime < now) {
+                    // Если вводится прошедшая дата, не запускаем расчет
+                    return;
+                }
+                
                 this.calculateStep1();
             });
             
-            // Обработка ввода времени
-            pickupTimeInput.addEventListener('input', () => {
-                this.calculateStep1();
+            // Дополнительная валидация при потере фокуса
+            pickupTimeInput.addEventListener('blur', () => {
+                const selectedDateTime = new Date(pickupTimeInput.value);
+                const now = new Date();
+                
+                if (selectedDateTime < now) {
+                    updateMinDateTime();
+                    pickupTimeInput.value = pickupTimeInput.min;
+                    this.showError('Нельзя выбрать прошедшую дату. Установлено текущее время.');
+                }
             });
         }
         
