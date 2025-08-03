@@ -222,12 +222,15 @@ class MapIntegration {
         const center = [59.9311, 30.3609];
         
         try {
-            // Создаем карту
-            this.map = L.map('mapContainer').setView(center, 12);
+            // Создаем карту без атрибуции
+            this.map = L.map('mapContainer', {
+                attributionControl: false
+            }).setView(center, 12);
             
-            // Добавляем слой OpenStreetMap
+            // Добавляем слой OpenStreetMap без атрибуции
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: '',
+                maxZoom: 18
             }).addTo(this.map);
             
             console.log('MapIntegration: Map initialized successfully');
