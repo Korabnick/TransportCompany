@@ -851,3 +851,60 @@ input[type="datetime-local"]:invalid:focus {
     border-color: var(--color-primary);
     background-color: #4b5563;
 }
+
+/* Address Autocomplete Styles */
+.address-suggestions {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 50;
+    max-height: 15rem;
+    overflow-y: auto;
+    margin-top: 2px;
+}
+
+.address-suggestions .suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.address-suggestions .suggestion-item:first-child {
+    border-top-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+}
+
+.address-suggestions .suggestion-item:last-child {
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+.address-suggestions .suggestion-item:hover {
+    background-color: #f3f4f6;
+}
+
+.address-suggestions .suggestion-item.bg-primary {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.dark .address-suggestions {
+    background-color: #1f2937;
+    border-color: #4b5563;
+}
+
+.dark .address-suggestions .suggestion-item {
+    color: #d1d5db;
+}
+
+.dark .address-suggestions .suggestion-item:hover {
+    background-color: #374151;
+}
+
+.dark .address-suggestions .suggestion-item.bg-primary {
+    background-color: #3b82f6;
+    color: white;
+}
