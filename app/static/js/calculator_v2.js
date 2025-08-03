@@ -623,8 +623,14 @@ class CalculatorV2 {
                 }
             }
             
-            const mapIntegration = new MapIntegration();
-            const route = await mapIntegration.calculateRoute(coordinates);
+            // Используем глобальный экземпляр MapIntegration
+            if (!window.mapIntegration) {
+                console.error('MapIntegration instance not found');
+                this.showError('Ошибка инициализации карты. Обновите страницу.');
+                return null;
+            }
+            
+            const route = await window.mapIntegration.calculateRoute(coordinates);
             
             if (route && route.distance > 0) {
                 console.log('Route calculated successfully:', route);
@@ -1495,284 +1501,9 @@ class CalculatorV2 {
     }
 }
 
-// Класс для интеграции с картами (Nominatim + OSRM)
-class MapIntegration {
-    constructor() {
-        this.nominatimBaseUrl = 'https://nominatim.openstreetmap.org';
-        this.osrmBaseUrl = 'https://router.project-osrm.org';
-        this.cache = new Map(); // Кэш для результатов поиска
-        this.searchTimeout = null;
-    }
+// MapIntegration класс теперь находится в отдельном файле map-integration.js
 
-    // Поиск адресов через Nominatim
-    async searchAddresses(query, limit = 5) {
-        if (!query || query.length < 3) return [];
-        
-        const cacheKey = `search_${query}`;
-        if (this.cache.has(cacheKey)) {
-            return this.cache.get(cacheKey);
-        }
-
-        try {
-            const params = new URLSearchParams({
-                q: query,
-                format: 'json',
-                limit: limit,
-                addressdetails: 1,
-                countrycodes: 'ru', // Ограничиваем поиск Россией
-                viewbox: '29.5,60.0,31.0,60.5', // Примерные границы СПб и области
-                bounded: 1
-            });
-
-            const response = await fetch(`${this.nominatimBaseUrl}/search?${params}`);
-            const data = await response.json();
-
-            const results = data.map(item => ({
-                display_name: item.display_name,
-                lat: parseFloat(item.lat),
-                lon: parseFloat(item.lon),
-                type: item.type,
-                importance: item.importance
-            }));
-
-            this.cache.set(cacheKey, results);
-            return results;
-        } catch (error) {
-            console.error('Ошибка поиска адресов:', error);
-            return [];
-        }
-    }
-
-    // Получение адреса по координатам
-    async getAddressFromCoords(lat, lon) {
-        try {
-            const response = await fetch(
-                `${this.nominatimBaseUrl}/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`
-            );
-            const data = await response.json();
-            return data.display_name;
-        } catch (error) {
-            console.error('Ошибка получения адреса по координатам:', error);
-            return null;
-        }
-    }
-
-    // Расчет маршрута через OSRM
-    async calculateRoute(coordinates) {
-        if (coordinates.length < 2) {
-            console.error('Недостаточно координат для расчета маршрута');
-            return null;
-        }
-
-        try {
-            console.log('Отправка запроса к OSRM с координатами:', coordinates);
-            
-            const coordsString = coordinates.map(coord => `${coord.lon},${coord.lat}`).join(';');
-            const url = `${this.osrmBaseUrl}/route/v1/driving/${coordsString}?overview=full&geometries=geojson`;
-            
-            console.log('OSRM URL:', url);
-            
-            const response = await fetch(url);
-            const data = await response.json();
-
-            console.log('OSRM response:', data);
-
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const result = {
-                    distance: route.distance / 1000, // Конвертируем в километры
-                    duration: route.duration / 60, // Конвертируем в минуты
-                    geometry: route.geometry,
-                    legs: route.legs
-                };
-                
-                console.log('Рассчитанный маршрут:', result);
-                return result;
-            } else if (data.code === 'NoRoute') {
-                console.error('OSRM не смог найти маршрут между указанными точками');
-                return null;
-            } else {
-                console.error('Неожиданный ответ от OSRM:', data);
-                return null;
-            }
-        } catch (error) {
-            console.error('Ошибка расчета маршрута:', error);
-            return null;
-        }
-    }
-
-    // Форматирование адреса для отображения
-    formatAddress(address) {
-        if (!address) return '';
-        
-        // Убираем лишние части адреса, оставляем только основные
-        const parts = address.split(', ');
-        if (parts.length > 3) {
-            return parts.slice(0, 3).join(', ');
-        }
-        return address;
-    }
-}
-
-// Класс для автозаполнения адресов
-class AddressAutocomplete {
-    constructor(inputId, suggestionsId) {
-        this.input = document.getElementById(inputId);
-        this.suggestionsContainer = document.getElementById(suggestionsId);
-        this.mapIntegration = new MapIntegration();
-        this.currentSuggestions = [];
-        this.selectedIndex = -1;
-        this.isOpen = false;
-        
-        if (this.input) {
-            this.init();
-        }
-    }
-
-    init() {
-        // Создаем контейнер для подсказок, если его нет
-        if (!this.suggestionsContainer) {
-            this.suggestionsContainer = document.createElement('div');
-            this.suggestionsContainer.id = this.input.id + 'Suggestions';
-            this.suggestionsContainer.className = 'address-suggestions absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-b-lg shadow-lg z-50 max-h-60 overflow-y-auto hidden';
-            this.input.parentNode.appendChild(this.suggestionsContainer);
-        }
-
-        this.bindEvents();
-    }
-
-    bindEvents() {
-        // Обработка ввода
-        this.input.addEventListener('input', (e) => {
-            this.handleInput(e.target.value);
-        });
-
-        // Обработка клавиш
-        this.input.addEventListener('keydown', (e) => {
-            this.handleKeydown(e);
-        });
-
-        // Обработка фокуса
-        this.input.addEventListener('focus', () => {
-            if (this.currentSuggestions.length > 0) {
-                this.showSuggestions();
-            }
-        });
-
-        // Обработка клика вне поля
-        document.addEventListener('click', (e) => {
-            if (!this.input.contains(e.target) && !this.suggestionsContainer.contains(e.target)) {
-                this.hideSuggestions();
-            }
-        });
-    }
-
-    async handleInput(value) {
-        if (value.length < 3) {
-            this.hideSuggestions();
-            return;
-        }
-
-        // Очищаем предыдущий таймаут
-        if (this.searchTimeout) {
-            clearTimeout(this.searchTimeout);
-        }
-
-        // Устанавливаем новый таймаут для debounce
-        this.searchTimeout = setTimeout(async () => {
-            const suggestions = await this.mapIntegration.searchAddresses(value);
-            this.currentSuggestions = suggestions;
-            this.selectedIndex = -1;
-            
-            if (suggestions.length > 0) {
-                this.showSuggestions();
-                this.renderSuggestions();
-            } else {
-                this.hideSuggestions();
-            }
-        }, 300);
-    }
-
-    handleKeydown(e) {
-        if (!this.isOpen) return;
-
-        switch (e.key) {
-            case 'ArrowDown':
-                e.preventDefault();
-                this.selectedIndex = Math.min(this.selectedIndex + 1, this.currentSuggestions.length - 1);
-                this.updateSelection();
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
-                this.updateSelection();
-                break;
-            case 'Enter':
-                e.preventDefault();
-                if (this.selectedIndex >= 0) {
-                    this.selectSuggestion(this.selectedIndex);
-                }
-                break;
-            case 'Escape':
-                this.hideSuggestions();
-                break;
-        }
-    }
-
-    renderSuggestions() {
-        this.suggestionsContainer.innerHTML = '';
-        
-        this.currentSuggestions.forEach((suggestion, index) => {
-            const item = document.createElement('div');
-            item.className = 'suggestion-item px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors';
-            item.textContent = this.mapIntegration.formatAddress(suggestion.display_name);
-            
-            item.addEventListener('click', () => {
-                this.selectSuggestion(index);
-            });
-            
-            this.suggestionsContainer.appendChild(item);
-        });
-    }
-
-    updateSelection() {
-        const items = this.suggestionsContainer.querySelectorAll('.suggestion-item');
-        items.forEach((item, index) => {
-            if (index === this.selectedIndex) {
-                item.classList.add('bg-primary', 'text-white');
-            } else {
-                item.classList.remove('bg-primary', 'text-white');
-            }
-        });
-    }
-
-    selectSuggestion(index) {
-        if (index >= 0 && index < this.currentSuggestions.length) {
-            const suggestion = this.currentSuggestions[index];
-            this.input.value = this.mapIntegration.formatAddress(suggestion.display_name);
-            
-            // Сохраняем координаты в data-атрибутах
-            this.input.dataset.lat = suggestion.lat;
-            this.input.dataset.lon = suggestion.lon;
-            
-            this.hideSuggestions();
-            
-            // Триггерим событие изменения для пересчета маршрута
-            this.input.dispatchEvent(new Event('change'));
-        }
-    }
-
-    showSuggestions() {
-        this.suggestionsContainer.classList.remove('hidden');
-        this.isOpen = true;
-    }
-
-    hideSuggestions() {
-        this.suggestionsContainer.classList.add('hidden');
-        this.isOpen = false;
-        this.selectedIndex = -1;
-    }
-}
+// AddressAutocomplete класс больше не используется - используется Leaflet карта
 
 // Функционал для дополнительных кнопок
 function initializeAdditionalFeatures() {
@@ -1850,11 +1581,7 @@ function initializeAdditionalFeatures() {
         
         additionalAddressesContainer.appendChild(addressField);
         
-        // Инициализируем автозаполнение для нового поля
-        const newInput = document.getElementById(fieldId);
-        if (newInput) {
-            new AddressAutocomplete(fieldId, suggestionsId);
-        }
+        // Инициализация автозаполнения отключена - используется Leaflet карта
         
         // Триггерим пересчет маршрута при добавлении нового адреса
         if (window.calculator) {
@@ -1997,21 +1724,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // Инициализируем дополнительные функции
     initializeAdditionalFeatures();
     
-    // Инициализируем автодополнение адресов
-    const fromAddressInput = document.getElementById('fromAddress');
-    const toAddressInput = document.getElementById('toAddress');
-    const fromSuggestions = document.getElementById('fromAddressSuggestions');
-    const toSuggestions = document.getElementById('toAddressSuggestions');
-    
-    console.log('Address inputs found:', { fromAddressInput, toAddressInput, fromSuggestions, toSuggestions });
-    
-    if (fromAddressInput && fromSuggestions) {
-        window.fromAddressAutocomplete = new AddressAutocomplete('fromAddress', 'fromAddressSuggestions');
-        window.fromAddressAutocomplete.init();
-    }
-    
-    if (toAddressInput && toSuggestions) {
-        window.toAddressAutocomplete = new AddressAutocomplete('toAddress', 'toAddressSuggestions');
-        window.toAddressAutocomplete.init();
-    }
+    // Инициализация автодополнения адресов отключена - используется Leaflet карта
+    console.log('Address autocomplete disabled - using Leaflet map instead');
 }); 

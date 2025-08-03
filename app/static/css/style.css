@@ -779,3 +779,75 @@ input[type="datetime-local"]:invalid:focus {
 .validation-error i {
     font-size: 1rem;
 }
+
+/* Стили для адресных полей с картой */
+.address-input-wrapper {
+    position: relative;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-secondary);
+}
+
+.address-input-wrapper:hover {
+    border-color: var(--color-primary);
+}
+
+.address-input-wrapper input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: text;
+    color: var(--color-text-primary);
+    width: 100%;
+    padding: 0.5rem 1rem;
+}
+
+.address-input-wrapper input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.address-input-wrapper input::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+/* Стили для модального окна карты */
+#mapModal {
+    z-index: 9999;
+}
+
+#mapModal > div {
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+#mapContainer {
+    min-height: 400px;
+    border-radius: 8px;
+}
+
+/* Стили для поиска в карте */
+#mapSearchInput {
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    transition: border-color 0.2s ease;
+}
+
+#mapSearchInput:focus {
+    border-color: var(--color-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(212, 106, 0, 0.1);
+}
+
+.dark #mapSearchInput {
+    border-color: #4b5563;
+    background-color: #374151;
+    color: #f9fafb;
+}
+
+.dark #mapSearchInput:focus {
+    border-color: var(--color-primary);
+    background-color: #4b5563;
+}

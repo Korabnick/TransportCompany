@@ -6,6 +6,7 @@ from app.models import (
     VehicleDatabase, CalculationResult
 )
 import json
+import requests
 from datetime import datetime
 from typing import Dict, Any
 
@@ -369,3 +370,112 @@ def api_health_v2():
     except Exception as e:
         app.logger.error(f"Health check error: {str(e)}")
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+
+@app.route('/api/v2/proxy/osrm', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_proxy_osrm():
+    """Прокси для OSRM API для избежания CORS проблем"""
+    try:
+        # Получаем параметры из запроса
+        coordinates = request.args.get('coordinates')
+        profile = request.args.get('profile', 'driving')
+        overview = request.args.get('overview', 'false')
+        steps = request.args.get('steps', 'false')
+        
+        if not coordinates:
+            return jsonify({'error': 'Coordinates parameter is required'}), 400
+        
+        # Формируем URL для OSRM API
+        osrm_url = f"https://router.project-osrm.org/route/v1/{profile}/{coordinates}"
+        
+        # Добавляем параметры запроса
+        params = {
+            'overview': overview,
+            'steps': steps
+        }
+        
+        # Выполняем запрос к OSRM API
+        response = requests.get(osrm_url, params=params, timeout=10)
+        
+        # Проверяем статус ответа
+        if response.status_code != 200:
+            app.logger.error(f"OSRM API error: {response.status_code} - {response.text}")
+            return jsonify({'error': f'OSRM API error: {response.status_code}'}), response.status_code
+        
+        # Возвращаем данные от OSRM API
+        return Response(
+            response.content,
+            status=200,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+    except requests.exceptions.Timeout:
+        app.logger.error("OSRM API timeout")
+        return jsonify({'error': 'OSRM API timeout'}), 504
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"OSRM API request error: {str(e)}")
+        return jsonify({'error': 'OSRM API request failed'}), 502
+    except Exception as e:
+        app.logger.error(f"OSRM proxy error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/proxy/nominatim', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_proxy_nominatim():
+    """Прокси для Nominatim API для геокодирования"""
+    try:
+        # Получаем параметры из запроса
+        q = request.args.get('q')  # Поиск по адресу
+        lat = request.args.get('lat')  # Обратное геокодирование
+        lon = request.args.get('lon')  # Обратное геокодирование
+        format_type = request.args.get('format', 'json')
+        
+        if not q and not (lat and lon):
+            return jsonify({'error': 'Either q parameter or lat/lon parameters are required'}), 400
+        
+        # Формируем URL для Nominatim API
+        nominatim_url = "https://nominatim.openstreetmap.org/search"
+        
+        # Добавляем параметры запроса
+        params = {
+            'format': format_type,
+            'limit': 5,
+            'addressdetails': 1
+        }
+        
+        if q:
+            params['q'] = q
+        else:
+            params['lat'] = lat
+            params['lon'] = lon
+            nominatim_url = "https://nominatim.openstreetmap.org/reverse"
+        
+        # Добавляем User-Agent для соблюдения правил использования Nominatim
+        headers = {
+            'User-Agent': 'TransportCompany/1.0 (https://transportcompany.com)'
+        }
+        
+        # Выполняем запрос к Nominatim API
+        response = requests.get(nominatim_url, params=params, headers=headers, timeout=10)
+        
+        # Проверяем статус ответа
+        if response.status_code != 200:
+            app.logger.error(f"Nominatim API error: {response.status_code} - {response.text}")
+            return jsonify({'error': f'Nominatim API error: {response.status_code}'}), response.status_code
+        
+        # Возвращаем данные от Nominatim API
+        return Response(
+            response.content,
+            status=200,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+    except requests.exceptions.Timeout:
+        app.logger.error("Nominatim API timeout")
+        return jsonify({'error': 'Nominatim API timeout'}), 504
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Nominatim API request error: {str(e)}")
+        return jsonify({'error': 'Nominatim API request failed'}), 502
+    except Exception as e:
+        app.logger.error(f"Nominatim proxy error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
