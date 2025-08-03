@@ -99,20 +99,35 @@ document.addEventListener("DOMContentLoaded", function() {
   const newsCarousel = document.getElementById('newsCarousel');
   const step2 = document.getElementById('step2');
   const step3 = document.getElementById('step3');
+  
+  // Флаг для предотвращения множественных вызовов
+  let stepsShown = false;
 
   // Функция для показа шагов 2 и 3
   function showCalculatorSteps() {
+    if (stepsShown) {
+      console.log('Steps already shown, skipping...');
+      return;
+    }
+    
     console.log('showCalculatorSteps called');
+    stepsShown = true;
     newsCarousel.classList.add('hidden');
     step2.classList.remove('hidden');
     step3.classList.remove('hidden');
     step2.classList.add('md:col-span-1');
     step3.classList.add('md:col-span-1');
+    
+    // Загружаем транспорт при показе шага 2
+    if (window.calculator && window.calculator.showStep2) {
+      window.calculator.showStep2();
+    }
   }
 
   // Функция для скрытия шагов 2 и 3
   function hideCalculatorSteps() {
     console.log('hideCalculatorSteps called');
+    stepsShown = false;
     newsCarousel.classList.remove('hidden');
     step2.classList.add('hidden');
     step3.classList.add('hidden');
@@ -124,18 +139,21 @@ document.addEventListener("DOMContentLoaded", function() {
   const step1Elements = step1.querySelectorAll('input, select, button, label');
   step1Elements.forEach(element => {
     element.addEventListener('click', function(e) {
-      // Исключаем клики на адресные поля, так как они обрабатываются отдельно
-      if (this.id === 'fromAddress' || this.id === 'toAddress') {
-        return;
-      }
       console.log('Step1 element clicked:', this.id || this.tagName);
       showCalculatorSteps();
     });
   });
 
-  // Обработчики для адресных полей (показывают шаги при вводе)
+  // Обработчики для адресных полей (показывают шаги при фокусе и вводе)
   const addressInputs = step1.querySelectorAll('input[type="text"]');
   addressInputs.forEach(input => {
+    // Показываем шаги при фокусе на поле ввода адреса
+    input.addEventListener('focus', function() {
+      console.log('Address input focused:', this.id);
+      showCalculatorSteps();
+    });
+    
+    // Показываем шаги при вводе текста
     input.addEventListener('input', function() {
       console.log('Address input changed:', this.value);
       if (this.value.trim() !== '') {

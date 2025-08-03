@@ -8,6 +8,8 @@ class AddressAutocomplete {
         this.suggestionsContainer = null;
         this.debounceTimer = null;
         this.selectedIndex = -1;
+        this.tooltipTimer = null;
+        this.shownTooltips = new Set(); // Отслеживаем показанные подсказки
         
         this.init();
     }
@@ -34,6 +36,9 @@ class AddressAutocomplete {
             // Создаем контейнер для подсказок
             this.createSuggestionsContainer(input);
             
+            // Создаем подсказку для иконки карты
+            this.createMapTooltip(input);
+            
             // Обработчик ввода текста
             input.addEventListener('input', (e) => {
                 this.handleInput(e.target);
@@ -49,6 +54,11 @@ class AddressAutocomplete {
                 this.handleBlur(e.target);
             });
             
+            // Обработчик клика для показа подсказки
+            input.addEventListener('click', (e) => {
+                this.showMapTooltip(input);
+            });
+            
             // Обработчик клавиш
             input.addEventListener('keydown', (e) => {
                 this.handleKeydown(e);
@@ -57,7 +67,7 @@ class AddressAutocomplete {
         
         // Закрытие подсказок при клике вне
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.address-input-wrapper') && !e.target.closest('.address-suggestions')) {
+            if (!e.target.closest('.relative') && !e.target.closest('.address-suggestions')) {
                 this.hideSuggestions();
             }
         });
@@ -76,6 +86,51 @@ class AddressAutocomplete {
         
         // Сохраняем ссылку на контейнер
         input.suggestionsContainer = container;
+    }
+    
+    createMapTooltip(input) {
+        // Создаем подсказку для иконки карты
+        const tooltip = document.createElement('div');
+        tooltip.className = 'map-tooltip';
+        tooltip.textContent = 'Нажмите для выбора на карте';
+        
+        // Вставляем в контейнер поля ввода
+        input.parentNode.appendChild(tooltip);
+        
+        // Сохраняем ссылку на подсказку
+        input.mapTooltip = tooltip;
+    }
+    
+    showMapTooltip(input) {
+        // Проверяем, была ли уже показана подсказка для этого поля
+        if (this.shownTooltips.has(input.id)) {
+            return; // Подсказка уже была показана
+        }
+        
+        // Показываем подсказку
+        const tooltip = input.mapTooltip;
+        if (tooltip) {
+            tooltip.classList.add('show');
+            
+            // Отмечаем, что подсказка была показана для этого поля
+            this.shownTooltips.add(input.id);
+            
+            // Скрываем подсказку через 5 секунд
+            if (this.tooltipTimer) {
+                clearTimeout(this.tooltipTimer);
+            }
+            
+            this.tooltipTimer = setTimeout(() => {
+                this.hideMapTooltip(input);
+            }, 5000);
+        }
+    }
+    
+    hideMapTooltip(input) {
+        const tooltip = input.mapTooltip;
+        if (tooltip) {
+            tooltip.classList.remove('show');
+        }
     }
     
     handleInput(input) {
@@ -262,8 +317,10 @@ class AddressAutocomplete {
     }
     
     hideSuggestions(input = null) {
-        if (input && input.suggestionsContainer) {
-            input.suggestionsContainer.classList.add('hidden');
+        if (input) {
+            if (input.suggestionsContainer) {
+                input.suggestionsContainer.classList.add('hidden');
+            }
         } else {
             // Скрываем все контейнеры подсказок
             const containers = document.querySelectorAll('.address-suggestions');
@@ -272,6 +329,44 @@ class AddressAutocomplete {
             });
         }
         this.selectedIndex = -1;
+    }
+    
+    // Метод для привязки к динамически добавленным полям
+    bindInput(input) {
+        console.log('AddressAutocomplete: Binding to new input:', input.id);
+        
+        // Создаем контейнер для подсказок
+        this.createSuggestionsContainer(input);
+        
+        // Создаем подсказку для иконки карты
+        this.createMapTooltip(input);
+        
+        // Обработчик ввода текста
+        input.addEventListener('input', (e) => {
+            this.handleInput(e.target);
+        });
+        
+        // Обработчик фокуса
+        input.addEventListener('focus', (e) => {
+            this.handleFocus(e.target);
+        });
+        
+        // Обработчик потери фокуса
+        input.addEventListener('blur', (e) => {
+            this.handleBlur(e.target);
+        });
+        
+        // Обработчик клика для показа подсказки
+        input.addEventListener('click', (e) => {
+            this.showMapTooltip(input);
+        });
+        
+        // Обработчик клавиш
+        input.addEventListener('keydown', (e) => {
+            this.handleKeydown(e);
+        });
+        
+        console.log('AddressAutocomplete: Successfully bound to new input:', input.id);
     }
 }
 

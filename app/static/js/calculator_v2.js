@@ -24,6 +24,7 @@ class CalculatorV2 {
         this.bindEvents();
         this.checkRateLimitStatus();
         this.loadVehicles();
+        // Транспорт будет загружен и отображен при показе шага 2
     }
     
     bindEvents() {
@@ -1546,7 +1547,8 @@ function initializeAdditionalFeatures() {
                             autocomplete="off"
                         />
                         <button
-                            class="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                            class="map-open-btn absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 transition-transform hover:scale-125"
+                            data-input-id="${fieldId}"
                         >
                             <i class="ri-map-pin-line"></i>
                         </button>
@@ -1581,7 +1583,11 @@ function initializeAdditionalFeatures() {
         
         additionalAddressesContainer.appendChild(addressField);
         
-        // Инициализация автозаполнения отключена - используется Leaflet карта
+        // Инициализируем автозаполнение для нового поля
+        const newInput = addressField.querySelector('input');
+        if (newInput && window.addressAutocomplete) {
+            window.addressAutocomplete.bindInput(newInput);
+        }
         
         // Триггерим пересчет маршрута при добавлении нового адреса
         if (window.calculator) {
@@ -1595,6 +1601,7 @@ function initializeAdditionalFeatures() {
             const label = field.querySelector('label');
             const input = field.querySelector('input');
             const suggestions = field.querySelector('.address-suggestions');
+            const mapButton = field.querySelector('.map-open-btn');
             
             if (label) {
                 label.textContent = `Дополнительный адрес ${index + 1}`;
@@ -1609,6 +1616,11 @@ function initializeAdditionalFeatures() {
             if (suggestions) {
                 const newSuggestionsId = `additionalAddress${index + 1}Suggestions`;
                 suggestions.id = newSuggestionsId;
+            }
+            
+            // Обновляем data-input-id для кнопки карты
+            if (mapButton && input) {
+                mapButton.setAttribute('data-input-id', input.id);
             }
         });
     }
