@@ -930,3 +930,105 @@ input[type="datetime-local"]:invalid:focus {
     background-color: #3b82f6;
     color: white;
 }
+
+#mapPopup {
+    position: fixed;
+    z-index: 50;
+    width: 500px; /* Defined in JS, but good to keep here for clarity */
+    height: 500px; /* Defined in JS, but good to keep here for clarity */
+}
+
+.map-popup-container {
+    background-color: var(--color-bg-primary) !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .map-popup-container {
+    background-color: var(--color-bg-secondary) !important;
+    border: 1px solid #2d2a24 !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+}
+
+#mapContainer {
+    min-height: 200px;
+    background-color: var(--color-bg-primary) !important;
+}
+
+.dark #mapContainer {
+    background-color: var(--color-bg-secondary) !important;
+}
+
+#mapSearchInput {
+    background-color: #ffffff !important;
+    color: #0b0f13 !important;
+    border-color: #e5e7eb !important;
+}
+
+#mapSearchInput:focus {
+    border-color: #d46a00 !important;
+    box-shadow: 0 0 0 1px #d46a00 !important;
+}
+
+.dark #mapSearchInput {
+    background-color: #2d2a24 !important;
+    color: #f8e0c2 !important;
+    border-color: #3a2a24 !important;
+}
+
+.dark #mapSearchInput:focus {
+    border-color: #e58a2b !important;
+    box-shadow: 0 0 0 1px #e58a2b !important;
+}
+
+#mapPopup .popup-header {
+    background: var(--color-bg-secondary) !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dark #mapPopup .popup-header {
+    background: var(--color-bg-tertiary) !important;
+    border-bottom-color: #3a2a24 !important;
+}
+
+#mapPopup .popup-content {
+    padding: 1rem;
+    height: calc(100% - 160px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+}
+
+#mapPopup .popup-content #mapContainer {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background-color: var(--color-bg-primary) !important;
+    flex: 1;
+    min-height: 200px;
+}
+
+.dark #mapPopup .popup-content #mapContainer {
+    background-color: var(--color-bg-secondary) !important;
+}
+
+#mapPopup .popup-footer {
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb !important;
+    background: var(--color-bg-secondary) !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+    margin-top: auto;
+}
+
+.dark #mapPopup .popup-footer {
+    background: var(--color-bg-tertiary) !important;
+    border-top-color: #3a2a24 !important;
+}

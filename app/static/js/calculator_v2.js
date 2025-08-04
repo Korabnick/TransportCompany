@@ -1589,6 +1589,11 @@ function initializeAdditionalFeatures() {
             window.addressAutocomplete.bindInput(newInput);
         }
         
+        // Привязываем события к новой кнопке карты
+        if (window.mapIntegration) {
+            window.mapIntegration.bindMapButtons();
+        }
+        
         // Триггерим пересчет маршрута при добавлении нового адреса
         if (window.calculator) {
             window.calculator.calculateStep1();

@@ -54,6 +54,7 @@ class MapIntegration {
         this.currentInputId = null;
         this.selectedCoordinates = null;
         this.selectedAddress = '';
+        this.currentButton = null; // Добавляем ссылку на текущую кнопку
         
         this.init();
     }
@@ -68,48 +69,17 @@ class MapIntegration {
     bindEvents() {
         console.log('MapIntegration: Binding events');
         
-        // Проверяем наличие кнопок карты
-        const mapButtons = document.querySelectorAll('.map-open-btn');
-        console.log('MapIntegration: Found map buttons:', mapButtons.length);
+        // Привязываем события к существующим кнопкам
+        this.bindMapButtons();
         
-        // Additional debugging
-        console.log('MapIntegration: All buttons on page:', document.querySelectorAll('button').length);
-        console.log('MapIntegration: All elements with map-open-btn class:', document.querySelectorAll('[class*="map-open-btn"]').length);
-        
-        // Добавляем обработчики для кнопок карты
-        mapButtons.forEach((btn, index) => {
-            console.log(`MapIntegration: Button ${index}:`, {
-                classList: btn.classList.toString(),
-                dataInputId: btn.getAttribute('data-input-id'),
-                innerHTML: btn.innerHTML
-            });
-            
-            btn.addEventListener('click', (e) => {
-                console.log(`MapIntegration: Map button clicked for button ${index}`);
-                console.log('MapIntegration: Button element:', btn);
-                console.log('MapIntegration: Button classes:', btn.className);
-                console.log('MapIntegration: Button data-input-id:', btn.getAttribute('data-input-id'));
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const inputId = btn.getAttribute('data-input-id');
-                if (inputId) {
-                    console.log(`MapIntegration: Opening map for input: ${inputId}`);
-                    this.openMap(inputId);
-                } else {
-                    console.error('MapIntegration: No data-input-id found on button');
-                }
-            });
-        });
-        
-        // Закрытие модального окна
-        const closeMapModal = document.getElementById('closeMapModal');
-        if (closeMapModal) {
-            closeMapModal.addEventListener('click', () => {
+        // Закрытие popup
+        const closeMapPopup = document.getElementById('closeMapPopup');
+        if (closeMapPopup) {
+            closeMapPopup.addEventListener('click', () => {
                 this.closeMap();
             });
         } else {
-            console.error('MapIntegration: closeMapModal element not found');
+            console.error('MapIntegration: closeMapPopup element not found');
         }
         
         // Отмена выбора
@@ -125,7 +95,10 @@ class MapIntegration {
         // Подтверждение выбора
         const confirmMapSelection = document.getElementById('confirmMapSelection');
         if (confirmMapSelection) {
-            confirmMapSelection.addEventListener('click', () => {
+            console.log('MapIntegration: Found confirmMapSelection button, adding event listener');
+            confirmMapSelection.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.confirmSelection();
             });
         } else {
@@ -154,58 +127,188 @@ class MapIntegration {
             console.error('MapIntegration: mapSearchInput element not found');
         }
         
-        // Закрытие по клику вне модального окна
-        const mapModal = document.getElementById('mapModal');
-        if (mapModal) {
-            mapModal.addEventListener('click', (e) => {
-                if (e.target.id === 'mapModal') {
-                    this.closeMap();
+        // Закрытие по клику вне popup
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('mapPopup');
+            if (popup && !popup.contains(e.target) && !e.target.closest('.map-open-btn')) {
+                // Не закрываем popup если клик был на кнопке подтверждения
+                if (e.target.id === 'confirmMapSelection' || e.target.closest('#confirmMapSelection')) {
+                    return;
+                }
+                this.closeMap();
+            }
+        });
+        
+        // Закрытие popup при прокрутке страницы
+        document.addEventListener('scroll', () => {
+            if (this.currentButton) {
+                this.closeMap();
+            }
+        });
+        
+        // Перепозиционирование popup при изменении размера окна
+        window.addEventListener('resize', () => {
+            if (this.currentButton) {
+                const popup = document.getElementById('mapPopup');
+                if (popup && !popup.classList.contains('hidden')) {
+                    this.positionPopup(popup, this.currentButton);
+                }
+            }
+        });
+    }
+    
+    // Метод для привязки событий к кнопкам карты
+    bindMapButtons() {
+        console.log('MapIntegration: Binding map buttons');
+        
+        // Проверяем наличие кнопок карты
+        const mapButtons = document.querySelectorAll('.map-open-btn');
+        console.log('MapIntegration: Found map buttons:', mapButtons.length);
+        
+        // Additional debugging
+        console.log('MapIntegration: All buttons on page:', document.querySelectorAll('button').length);
+        console.log('MapIntegration: All elements with map-open-btn class:', document.querySelectorAll('[class*="map-open-btn"]').length);
+        
+        // Добавляем обработчики для кнопок карты
+        mapButtons.forEach((btn, index) => {
+            // Проверяем, не привязан ли уже обработчик
+            if (btn.hasAttribute('data-map-bound')) {
+                console.log(`MapIntegration: Button ${index} already bound, skipping`);
+                return;
+            }
+            
+            console.log(`MapIntegration: Button ${index}:`, {
+                classList: btn.classList.toString(),
+                dataInputId: btn.getAttribute('data-input-id'),
+                innerHTML: btn.innerHTML
+            });
+            
+            btn.addEventListener('click', (e) => {
+                console.log(`MapIntegration: Map button clicked for button ${index}`);
+                console.log('MapIntegration: Button element:', btn);
+                console.log('MapIntegration: Button classes:', btn.className);
+                console.log('MapIntegration: Button data-input-id:', btn.getAttribute('data-input-id'));
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const inputId = btn.getAttribute('data-input-id');
+                if (inputId) {
+                    console.log(`MapIntegration: Opening map for input: ${inputId}`);
+                    this.openMap(inputId);
+                } else {
+                    console.error('MapIntegration: No data-input-id found on button');
                 }
             });
-        } else {
-            console.error('MapIntegration: mapModal element not found');
-        }
-        
-        console.log('MapIntegration: Events bound successfully');
+            
+            // Отмечаем кнопку как привязанную
+            btn.setAttribute('data-map-bound', 'true');
+        });
     }
     
     openMap(inputId) {
-        console.log('MapIntegration: Opening map for input:', inputId);
-        this.currentInputId = inputId;
+        console.log('MapIntegration: openMap called with inputId:', inputId);
         
-        // Показываем модальное окно
-        const modal = document.getElementById('mapModal');
-        console.log('MapIntegration: Modal element:', modal);
-        if (modal) {
-            modal.classList.remove('hidden');
-            console.log('MapIntegration: Modal shown');
-        } else {
-            console.error('MapIntegration: Modal not found!');
+        this.currentInputId = inputId;
+        const input = document.getElementById(inputId);
+        
+        if (!input) {
+            console.error('MapIntegration: Input element not found:', inputId);
             return;
         }
+        
+        // Находим кнопку карты для этого поля
+        const mapButton = document.querySelector(`[data-input-id="${inputId}"]`);
+        if (!mapButton) {
+            console.error('MapIntegration: Map button not found for input:', inputId);
+            return;
+        }
+        
+        // Сохраняем ссылку на кнопку
+        this.currentButton = mapButton;
+        
+        // Показываем popup
+        const popup = document.getElementById('mapPopup');
+        if (!popup) {
+            console.error('MapIntegration: mapPopup element not found');
+            return;
+        }
+        
+        // Позиционируем popup рядом с кнопкой
+        this.positionPopup(popup, mapButton);
+        
+        // Показываем popup
+        popup.classList.remove('hidden');
         
         // Инициализируем карту после небольшой задержки
         setTimeout(() => {
             this.initMap();
         }, 100);
+        
+        console.log('MapIntegration: Map popup opened');
+    }
+    
+    positionPopup(popup, button) {
+        const buttonRect = button.getBoundingClientRect();
+        const popupWidth = 500;
+        const popupHeight = 500;
+        const margin = 20;
+        
+        // Вычисляем позицию
+        let left = buttonRect.right + margin;
+        let top = buttonRect.top;
+        
+        // Проверяем, не выходит ли popup за правый край экрана
+        if (left + popupWidth > window.innerWidth - margin) {
+            left = buttonRect.left - popupWidth - margin;
+        }
+        
+        // Проверяем, не выходит ли popup за левый край экрана
+        if (left < margin) {
+            left = margin;
+        }
+        
+        // Проверяем, не выходит ли popup за нижний край экрана
+        if (top + popupHeight > window.innerHeight - margin) {
+            top = window.innerHeight - popupHeight - margin;
+        }
+        
+        // Проверяем, не выходит ли popup за верхний край экрана
+        if (top < margin) {
+            top = margin;
+        }
+        
+        // Устанавливаем позицию
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
     }
     
     closeMap() {
-        console.log('MapIntegration: Closing map');
-        const modal = document.getElementById('mapModal');
-        if (modal) {
-            modal.classList.add('hidden');
+        console.log('MapIntegration: closeMap called');
+        
+        const popup = document.getElementById('mapPopup');
+        if (popup) {
+            popup.classList.add('hidden');
         }
         
-        // Уничтожаем карту при закрытии
-        if (this.map) {
-            this.map.remove();
-            this.map = null;
+        // Очищаем выбранный адрес
+        const selectedAddressSpan = document.getElementById('selectedAddress');
+        if (selectedAddressSpan) {
+            selectedAddressSpan.textContent = 'Выберите точку на карте';
         }
         
+        // Отключаем кнопку подтверждения
+        const confirmBtn = document.getElementById('confirmMapSelection');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+        }
+        
+        // Очищаем данные только после закрытия
         this.currentInputId = null;
         this.selectedCoordinates = null;
         this.selectedAddress = '';
+        this.currentButton = null; // Очищаем ссылку на кнопку
+        
+        console.log('MapIntegration: Map popup closed');
     }
     
     initMap() {
@@ -268,17 +371,42 @@ class MapIntegration {
             console.log('MapIntegration: Reverse geocoding for:', { lat, lng });
             
             const url = `/api/v2/proxy/nominatim?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+            console.log('MapIntegration: Reverse geocoding URL:', url);
+            
             const response = await fetch(url);
             const data = await response.json();
+            
+            console.log('MapIntegration: Reverse geocoding response:', data);
             
             if (data.display_name) {
                 this.selectedCoordinates = { lat, lng };
                 this.selectedAddress = data.display_name;
                 
-                document.getElementById('selectedAddress').textContent = this.selectedAddress;
-                document.getElementById('confirmMapSelection').disabled = false;
+                console.log('MapIntegration: Setting selected data:', {
+                    coordinates: this.selectedCoordinates,
+                    address: this.selectedAddress
+                });
                 
-                console.log('MapIntegration: Address found:', this.selectedAddress);
+                const selectedAddressSpan = document.getElementById('selectedAddress');
+                const confirmBtn = document.getElementById('confirmMapSelection');
+                
+                if (selectedAddressSpan) {
+                    selectedAddressSpan.textContent = this.selectedAddress;
+                    console.log('MapIntegration: Updated selectedAddress span');
+                } else {
+                    console.error('MapIntegration: selectedAddress span not found');
+                }
+                
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    console.log('MapIntegration: Enabled confirm button');
+                } else {
+                    console.error('MapIntegration: confirmMapSelection button not found');
+                }
+                
+                console.log('MapIntegration: Address found and set:', this.selectedAddress);
+            } else {
+                console.error('MapIntegration: No display_name in response');
             }
         } catch (error) {
             console.error('MapIntegration: Error in reverse geocoding:', error);
@@ -388,12 +516,19 @@ class MapIntegration {
     }
     
     confirmSelection() {
+        console.log('MapIntegration: confirmSelection called');
+        
         if (!this.currentInputId || !this.selectedCoordinates) {
-            console.log('No input or coordinates selected');
+            console.log('MapIntegration: No input or coordinates selected');
             return;
         }
         
-        console.log('Confirming selection:', {
+        if (!this.selectedAddress) {
+            console.log('MapIntegration: No address selected');
+            return;
+        }
+        
+        console.log('MapIntegration: Confirming selection:', {
             inputId: this.currentInputId,
             coordinates: this.selectedCoordinates,
             address: this.selectedAddress
@@ -401,6 +536,7 @@ class MapIntegration {
         
         // Обновляем поле ввода
         const input = document.getElementById(this.currentInputId);
+        
         if (input) {
             input.value = this.selectedAddress;
             
@@ -408,16 +544,14 @@ class MapIntegration {
             input.dataset.lat = this.selectedCoordinates.lat;
             input.dataset.lon = this.selectedCoordinates.lng;
             
-            console.log('Input updated:', {
-                value: input.value,
-                lat: input.dataset.lat,
-                lon: input.dataset.lon
-            });
+            console.log('MapIntegration: Input updated successfully');
             
             // Запускаем пересчет калькулятора
             if (window.calculator) {
                 window.calculator.calculateStep1();
             }
+        } else {
+            console.error('MapIntegration: Input element not found for ID:', this.currentInputId);
         }
         
         // Закрываем карту
