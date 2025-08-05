@@ -16,6 +16,14 @@ class CalculatorV2 {
             window: 60
         };
         
+        // Инициализация стоимости дополнительных услуг
+        this.additionalServicesCost = 0;
+        
+        // Инициализация таймера для автоматического обновления цены
+        this.priceUpdateTimer = null;
+        this.lastUserActivity = Date.now();
+        this.debounceTimer = null; // Новый таймер для debounce-логики
+        
         this.init();
     }
     
@@ -99,6 +107,10 @@ class CalculatorV2 {
                 // Обновляем отображение стоимости маршрута в шаге 3
                 this.updateRouteCostDisplay();
                 
+                // Обновляем время последней активности и запускаем таймер
+                this.lastUserActivity = Date.now();
+                this.startAutoPriceUpdate();
+                
                 // Показываем блок с результатами
                 const resultsBlock = document.getElementById('step1Results');
                 if (resultsBlock) {
@@ -143,6 +155,9 @@ class CalculatorV2 {
                 recalculateCost();
                 // Пересчитываем стоимость шага 2 при изменении длительности
                 this.recalculateStep2Cost();
+                // Обновляем время последней активности и запускаем таймер
+                this.lastUserActivity = Date.now();
+                this.startAutoPriceUpdate();
             });
         }
         
@@ -266,6 +281,10 @@ class CalculatorV2 {
                 console.log('Urgent checkbox changed');
                 const pickupTimeInput = document.getElementById('pickupTime');
                 
+                // Обновляем время последней активности и запускаем таймер
+                this.lastUserActivity = Date.now();
+                this.startAutoPriceUpdate();
+                
                 if (urgentCheckbox.checked) {
                     // При включении срочной подачи
                     pickupTimeInput.disabled = true;
@@ -352,6 +371,9 @@ class CalculatorV2 {
             if (select) {
                 select.addEventListener('change', () => {
                     this.filterVehicles();
+                    // Обновляем время последней активности и запускаем таймер
+                    this.lastUserActivity = Date.now();
+                    this.startAutoPriceUpdate();
                 });
             }
         });
@@ -403,6 +425,9 @@ class CalculatorV2 {
                 this.prevStep();
             });
         });
+        
+        // Удаляем широкое отслеживание активности пользователя
+        // Теперь debounce-логика срабатывает только при конкретных изменениях в калькуляторе
     }
     
     async calculateStep1() {
@@ -491,6 +516,10 @@ class CalculatorV2 {
             
             const totalCost = this.calculateTotalCost(totalDistance, durationHours, urgentPickup);
             
+            // Получаем значение pickup_time из поля ввода
+            const pickupTimeInput = document.getElementById('pickupTime');
+            const pickupTime = pickupTimeInput?.value || '';
+            
             const routeData = {
                 distance: totalDistance,
                 duration: totalDuration,
@@ -500,6 +529,7 @@ class CalculatorV2 {
                 coordinates: routeCoordinates.filter(Boolean),
                 duration_hours: durationHours,
                 urgent_pickup: urgentPickup,
+                pickup_time: pickupTime,
                 total: totalCost
             };
             
@@ -715,6 +745,14 @@ class CalculatorV2 {
         this.calculationData.step1.duration_hours = durationHours;
         this.calculationData.step1.urgent_pickup = urgentPickup;
         
+        console.log('Updated step1 data with duration_hours:', durationHours);
+        
+        // Сохраняем pickup_time, если он уже есть
+        if (!this.calculationData.step1.pickup_time) {
+            const pickupTimeInput = document.getElementById('pickupTime');
+            this.calculationData.step1.pickup_time = pickupTimeInput?.value || '';
+        }
+        
         console.log('Updated step1 total:', newTotal);
         
         // Обновляем отображение
@@ -776,7 +814,7 @@ class CalculatorV2 {
         }
         
         // Стоимость дополнительных услуг
-        const additionalServicesCost = this.calculationData.additionalServicesCost || 0;
+        const additionalServicesCost = this.additionalServicesCost || 0;
         step2Cost += additionalServicesCost;
         
         // Стоимость выбранного транспорта
@@ -878,6 +916,11 @@ class CalculatorV2 {
         
         updateMinDateTime();
         
+        // Обновляем pickup_time в сохраненных данных
+        if (this.calculationData.step1) {
+            this.calculationData.step1.pickup_time = formattedTime;
+        }
+        
         // Пересчитываем стоимость при изменении времени подачи
         if (this.calculationData.step1 && this.calculationData.step1.distance) {
             this.recalculateStep1Cost();
@@ -931,6 +974,10 @@ class CalculatorV2 {
             }
             
             this.updateVehiclesDisplay(filteredVehicles);
+            
+            // Обновляем время последней активности и запускаем таймер
+            this.lastUserActivity = Date.now();
+            this.startAutoPriceUpdate();
             
         } catch (error) {
             console.error('Vehicle filtering error:', error);
@@ -998,6 +1045,10 @@ class CalculatorV2 {
         }
         
         this.filterVehicles();
+        
+        // Обновляем время последней активности и запускаем таймер
+        this.lastUserActivity = Date.now();
+        this.startAutoPriceUpdate();
     }
     
     selectLoaders(count) {
@@ -1017,6 +1068,10 @@ class CalculatorV2 {
         this.recalculateStep2Cost();
         
         this.filterVehicles();
+        
+        // Обновляем время последней активности и запускаем таймер
+        this.lastUserActivity = Date.now();
+        this.startAutoPriceUpdate();
     }
     
     selectVehicle(vehicleId) {
@@ -1039,6 +1094,10 @@ class CalculatorV2 {
             // Показываем третий шаг
             this.showStep3();
             this.calculateStep3();
+            
+            // Обновляем время последней активности и запускаем таймер
+            this.lastUserActivity = Date.now();
+            this.startAutoPriceUpdate();
         }
     }
     
@@ -1251,6 +1310,16 @@ class CalculatorV2 {
         updateCarousel();
     }
     
+    showStep1() {
+        console.log('Showing step 1');
+        document.getElementById('step1').classList.remove('hidden');
+        document.getElementById('step2').classList.add('hidden');
+        document.getElementById('step3').classList.add('hidden');
+        this.currentStep = 1;
+        this.updateStepDisplay();
+        this.updateRouteCostDisplay();
+    }
+    
     showStep2() {
         console.log('Showing step 2...');
         const step2 = document.getElementById('step2');
@@ -1319,11 +1388,21 @@ class CalculatorV2 {
         const orderNotesBtn = document.getElementById('orderNotesBtn');
         const orderNotesContent = document.getElementById('orderNotesContent');
         const orderNotesIcon = document.getElementById('orderNotesIcon');
+        const orderNotesTextarea = document.getElementById('orderNotes');
         
         if (orderNotesBtn && orderNotesContent) {
             orderNotesBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.toggleOrderNotes(orderNotesContent, orderNotesIcon);
+            });
+        }
+        
+        // Добавляем обработчик для textarea примечаний
+        if (orderNotesTextarea) {
+            orderNotesTextarea.addEventListener('input', () => {
+                // Обновляем время последней активности и запускаем таймер
+                this.lastUserActivity = Date.now();
+                this.startAutoPriceUpdate();
             });
         }
     }
@@ -1407,10 +1486,14 @@ class CalculatorV2 {
         }
         
         // Сохраняем стоимость дополнительных услуг
-        this.calculationData.additionalServicesCost = totalAdditionalCost;
+        this.additionalServicesCost = totalAdditionalCost;
         
         // Пересчитываем стоимость шага 2
         this.recalculateStep2Cost();
+        
+        // Обновляем время последней активности и запускаем таймер
+        this.lastUserActivity = Date.now();
+        this.startAutoPriceUpdate();
     }
     
     async checkRateLimitStatus() {
@@ -1484,6 +1567,13 @@ class CalculatorV2 {
             return { success: false, error: 'Rate limit exceeded' };
         }
         
+        // Проверяем другие ошибки HTTP
+        if (!response.ok) {
+            const errorMessage = result.error || `HTTP ${response.status}: ${response.statusText}`;
+            console.error('HTTP Error:', response.status, result);
+            return { success: false, error: errorMessage };
+        }
+        
         return result;
     }
     
@@ -1527,6 +1617,9 @@ class CalculatorV2 {
     
     async submitOrder() {
         try {
+            // Останавливаем автоматическое обновление цены при отправке заказа
+            this.stopAutoPriceUpdate();
+            
             const name = document.getElementById('customerName')?.value;
             const phone = document.getElementById('customerPhone')?.value;
             const orderNotes = document.getElementById('orderNotes')?.value || '';
@@ -1555,33 +1648,23 @@ class CalculatorV2 {
                 submitBtn.disabled = true;
             }
             
-            // Формируем данные заявки
+            // Формируем данные заявки в новом формате (без calculation_result)
             const orderData = {
                 customer_name: name,
                 customer_phone: phone,
                 order_notes: orderNotes,
                 payment_method: 'online', // По умолчанию онлайн оплата
-                calculation_result: {
-                    route: {
-                        from_address: this.calculationData.step1.from_address || '',
-                        to_address: this.calculationData.step1.to_address || '',
-                        distance: this.calculationData.step1.distance || 0,
-                        pickup_time: this.calculationData.step1.pickup_time || '',
-                        duration_hours: this.calculationData.step1.duration_hours || 1,
-                        urgent_pickup: this.calculationData.step1.urgent_pickup || false
-                    },
-                    selected_vehicle: {
-                        id: this.selectedVehicle.id,
-                        name: this.selectedVehicle.name,
-                        passengers: this.calculationData.step2.passengers || 0,
-                        loaders: this.calculationData.step2.loaders || 0,
-                        price_per_hour: this.selectedVehicle.price_per_km,
-                        price_per_km: this.selectedVehicle.price_per_km,
-                        base_price: this.selectedVehicle.base_price
-                    },
-                    total_cost: this.calculationData.step3.total_cost || 0,
-                    breakdown: this.calculationData.step3.breakdown || {}
-                }
+                from_address: this.calculationData.step1.from_address || '',
+                to_address: this.calculationData.step1.to_address || '',
+                pickup_time: this.calculationData.step1.pickup_time || '',
+                duration_hours: this.calculationData.step1.duration_hours || 1,
+                urgent_pickup: this.calculationData.step1.urgent_pickup || false,
+                passengers: this.calculationData.step2.passengers || 0,
+                loaders: this.calculationData.step2.loaders || 0,
+                height: this.calculationData.step2.height || null,
+                length: this.calculationData.step2.length || null,
+                body_type: this.calculationData.step2.body_type || 'any',
+                selected_vehicle_id: this.selectedVehicle.id
             };
             
             // Отправляем заявку на сервер
@@ -1591,13 +1674,16 @@ class CalculatorV2 {
                 // Показываем успешное сообщение
                 showNotification('Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.', 'success');
                 
-                // Очищаем форму
-                this.resetCalculator();
+                // Обновляем цену от backend если она есть
+                if (response.calculated_total) {
+                    this.updateBackendPrice(response.calculated_total);
+                }
                 
-                // Переключаемся на первый шаг
-                this.showStep1();
+                // НЕ очищаем форму и НЕ переключаемся на первый шаг
+                // Оставляем пользователя на текущем шаге с актуальной ценой
                 
             } else {
+                console.error('Order submission failed:', response);
                 this.showError(response.error || 'Ошибка отправки заявки');
             }
             
@@ -1615,6 +1701,9 @@ class CalculatorV2 {
     }
     
     resetCalculator() {
+        // Останавливаем автоматическое обновление цены
+        this.stopAutoPriceUpdate();
+        
         // Очищаем все поля формы
         const inputs = document.querySelectorAll('#step1 input, #step3 input');
         inputs.forEach(input => {
@@ -1676,6 +1765,116 @@ class CalculatorV2 {
         // Очищаем отображение стоимости
         this.updateRouteCostDisplay();
         this.updateStep3Display({ total_cost: 0, breakdown: {} });
+    }
+    
+    // Функция для обновления цены от backend
+    updateBackendPrice(backendPrice) {
+        console.log('Обновляем цену от backend:', backendPrice);
+        
+        // Проверяем, изменилась ли цена
+        const currentPrice = this.calculationData.step3?.breakdown?.total || 0;
+        const backendTotal = backendPrice.breakdown?.total || 0;
+        const priceChanged = Math.abs(currentPrice - backendTotal) > 0.01; // Учитываем небольшие различия в округлении
+        
+        console.log('Сравнение цен:', { currentPrice, backendTotal, priceChanged });
+        
+        // Обновляем данные калькулятора с новыми ценами от backend
+        if (this.calculationData.step3 && backendPrice.breakdown) {
+            // Обновляем breakdown с данными от backend
+            this.calculationData.step3.breakdown = backendPrice.breakdown;
+            
+            // Обновляем отображение с новыми данными
+            this.updateStep3Display({
+                breakdown: backendPrice.breakdown
+            });
+            
+            console.log('Данные обновлены с backend:', backendPrice.breakdown);
+        }
+        
+        // Показываем уведомление только если цена действительно изменилась
+        if (priceChanged) {
+            showNotification('Цена обновлена с сервера для обеспечения точности', 'info');
+        }
+    }
+    
+    // Функция для отправки данных на backend для пересчета цены
+    async recalculatePriceFromBackend() {
+        try {
+            // Проверяем, что у нас есть минимальные данные для расчета
+            if (!this.calculationData.step1 || !this.calculationData.step1.from_address || !this.calculationData.step1.to_address) {
+                return;
+            }
+            
+            // Получаем актуальное значение duration_hours из DOM
+            const currentDurationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            
+            // Формируем данные для отправки на backend
+            const calculationData = {
+                from_address: this.calculationData.step1.from_address || '',
+                to_address: this.calculationData.step1.to_address || '',
+                pickup_time: this.calculationData.step1.pickup_time || '',
+                duration_hours: currentDurationHours, // Используем актуальное значение из DOM
+                urgent_pickup: this.calculationData.step1.urgent_pickup || false,
+                distance: this.calculationData.step1.distance || null,
+                additional_services_cost: this.additionalServicesCost || 0,
+                passengers: this.calculationData.step2?.passengers || 0,
+                loaders: this.calculationData.step2?.loaders || 0,
+                height: this.calculationData.step2?.height || null,
+                length: this.calculationData.step2?.length || null,
+                body_type: this.calculationData.step2?.body_type || 'any',
+                selected_vehicle_id: this.selectedVehicle?.id || null
+            };
+            
+            console.log('Отправляем данные на backend для пересчета:', calculationData);
+            console.log('Актуальное значение duration_hours из DOM:', currentDurationHours);
+            console.log('Сохраненное значение duration_hours:', this.calculationData.step1.duration_hours);
+            
+            // Отправляем запрос на backend для пересчета
+            const response = await this.makeRequest('/api/v2/calculate-price', 'POST', calculationData);
+            
+            console.log('Ответ от backend:', response);
+            
+            if (response.success && response.breakdown) {
+                // Обновляем с полными данными от backend
+                this.updateBackendPrice({
+                    breakdown: response.breakdown
+                });
+            }
+            
+        } catch (error) {
+            console.error('Ошибка при пересчете цены от backend:', error);
+        }
+    }
+    
+    // Функция для запуска автоматического обновления цены с debounce-логикой
+    startAutoPriceUpdate() {
+        // Останавливаем предыдущий debounce-таймер если он есть
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+        
+        // Запускаем новый debounce-таймер - сработает только один раз через 3 секунды после последней активности
+        this.debounceTimer = setTimeout(() => {
+            // Проверяем, что у нас есть все необходимые данные для расчета
+            if (this.calculationData.step1 && 
+                this.calculationData.step1.from_address && 
+                this.calculationData.step1.to_address &&
+                this.calculationData.step1.pickup_time) {
+                
+                this.recalculatePriceFromBackend();
+            }
+            
+            // Очищаем таймер после выполнения
+            this.debounceTimer = null;
+        }, 3000); // 3 секунды дебаунса
+    }
+    
+    // Функция для остановки автоматического обновления цены
+    stopAutoPriceUpdate() {
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+            this.debounceTimer = null;
+        }
     }
 }
 

@@ -135,35 +135,4 @@ class OrderStorage:
         return [order for order in self.orders.values() if order.customer_phone == phone]
 
 # Глобальный экземпляр хранилища
-order_storage = OrderStorage()
-
-def create_order_from_calculation(
-    customer_name: str,
-    customer_phone: str,
-    calculation_result: Dict[str, Any],
-    order_notes: str = "",
-    payment_method: PaymentMethod = PaymentMethod.ONLINE
-) -> Order:
-    """Создание заявки из результата расчета"""
-    
-    # Извлекаем данные из результата расчета
-    route_data = calculation_result.get('route', {})
-    vehicle_data = calculation_result.get('selected_vehicle', {})
-    
-    order = Order(
-        id=str(uuid.uuid4()),
-        customer_name=customer_name,
-        customer_phone=customer_phone,
-        from_address=route_data.get('from_address', ''),
-        to_address=route_data.get('to_address', ''),
-        pickup_time=route_data.get('pickup_time', ''),
-        duration_hours=route_data.get('duration_hours', 1),
-        passengers=vehicle_data.get('passengers', 0),
-        loaders=vehicle_data.get('loaders', 0),
-        selected_vehicle=vehicle_data,
-        total_cost=calculation_result.get('total_cost', 0),
-        order_notes=order_notes,
-        payment_method=payment_method
-    )
-    
-    return order 
+order_storage = OrderStorage() 

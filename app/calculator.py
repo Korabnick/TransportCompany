@@ -2,6 +2,7 @@
 import time
 import hashlib
 import json
+import os
 from typing import Dict, List, Optional, Tuple
 from functools import wraps
 from flask import current_app, request
@@ -70,6 +71,10 @@ def rate_limit(max_requests: int = 10, window_seconds: int = 60):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Проверяем FLASK_DEBUG - если TRUE, пропускаем rate limiting
+            if os.environ.get('FLASK_DEBUG', 'FALSE').upper() == 'TRUE':
+                return f(*args, **kwargs)
+            
             limiter = RateLimiter(max_requests, window_seconds)
             client_id = get_client_id()
             
@@ -108,33 +113,28 @@ class DistanceService:
     
     @staticmethod
     def calculate_route_price(distance: float, duration_hours: int, urgent_pickup: bool = False) -> Dict[str, float]:
-        """Расчет стоимости маршрута"""
-        # Базовые тарифы
-        price_per_km = 25.0
-        price_per_hour = 800.0
-        base_price = 500.0
+        """Расчет стоимости маршрута - точно как на фронтенде"""
+        # Шаг 1: Расчет стоимости за расстояние (1 км = 10 рублей) - как на фронтенде
+        base_cost_per_km = 10.0
+        distance_cost = distance * base_cost_per_km
         
-        # Коэффициенты
+        # Шаг 2: Расчет стоимости за длительность (100 рублей в час) - как на фронтенде
+        duration_cost_per_hour = 100.0
+        duration_cost = duration_hours * duration_cost_per_hour
+        
+        # Шаг 3: Общая стоимость без срочной подачи
+        base_total_cost = distance_cost + duration_cost
+        
+        # Шаг 4: Применяем срочную подачу (+30% к общей стоимости) - как на фронтенде
         urgent_multiplier = 1.3 if urgent_pickup else 1.0
-        distance_multiplier = 1.0
         
-        # Скидка за длительные поездки
-        if duration_hours >= 4:
-            distance_multiplier = 0.9
-        elif duration_hours >= 8:
-            distance_multiplier = 0.8
-        
-        # Расчеты
-        distance_cost = distance * price_per_km * distance_multiplier
-        time_cost = duration_hours * price_per_hour
-        total = (base_price + distance_cost + time_cost) * urgent_multiplier
+        total = round(base_total_cost * urgent_multiplier)
         
         return {
-            'base_price': base_price,
             'distance_cost': distance_cost,
-            'time_cost': time_cost,
+            'duration_cost': duration_cost,
+            'base_total_cost': base_total_cost,
             'urgent_multiplier': urgent_multiplier,
-            'distance_multiplier': distance_multiplier,
             'total': total
         }
 
@@ -209,9 +209,10 @@ class CalculatorServiceV2:
     @staticmethod
     def calculate_step3(
         step1_result: Dict[str, float],
-        selected_vehicle: Vehicle,
+        selected_vehicle: Optional[Vehicle],
         loaders: int,
-        duration_hours: int
+        duration_hours: int,
+        additional_services_cost: float = 0.0
     ) -> Dict[str, float]:
         """Расчет итоговой стоимости"""
         start_time = time.time()
@@ -220,22 +221,25 @@ class CalculatorServiceV2:
         base_cost = step1_result['total']
         
         # Стоимость транспорта
-        vehicle_cost = selected_vehicle.base_price + (
-            selected_vehicle.price_per_hour * duration_hours
-        )
+        vehicle_cost = 0
+        if selected_vehicle:
+            vehicle_cost = selected_vehicle.base_price + (
+                selected_vehicle.price_per_hour * duration_hours
+            )
         
         # Стоимость грузчиков
         loader_price_per_hour = 500.0  # Цена за грузчика в час
         loaders_cost = loaders * loader_price_per_hour * duration_hours
         
         # Итоговая стоимость
-        total = base_cost + vehicle_cost + loaders_cost
+        total = base_cost + vehicle_cost + loaders_cost + additional_services_cost
         
         # Детализация
         breakdown = {
             'route_cost': base_cost,
             'vehicle_cost': vehicle_cost,
             'loaders_cost': loaders_cost,
+            'additional_services_cost': additional_services_cost,
             'total': total
         }
         
@@ -279,7 +283,8 @@ class CalculatorServiceV2:
             step1_result,
             selected_vehicle,
             vehicle_request.loaders,
-            time_request.duration_hours
+            time_request.duration_hours,
+            0.0  # additional_services_cost - по умолчанию 0
         )
         
         # Создаем результат

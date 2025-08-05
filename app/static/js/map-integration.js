@@ -546,10 +546,14 @@ class MapIntegration {
             
             console.log('MapIntegration: Input updated successfully');
             
-            // Запускаем пересчет калькулятора
-            if (window.calculator) {
-                window.calculator.calculateStep1();
-            }
+                    // Запускаем пересчет калькулятора
+        if (window.calculator) {
+            window.calculator.calculateStep1();
+            
+            // Обновляем время последней активности и запускаем таймер
+            window.calculator.lastUserActivity = Date.now();
+            window.calculator.startAutoPriceUpdate();
+        }
         } else {
             console.error('MapIntegration: Input element not found for ID:', this.currentInputId);
         }

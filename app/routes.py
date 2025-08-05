@@ -5,7 +5,7 @@ from app.models import (
     RouteRequest, TimeRequest, VehicleRequest, BodyType, 
     VehicleDatabase, CalculationResult
 )
-from app.order_models import order_storage, create_order_from_calculation, OrderStatus, PaymentMethod
+from app.order_models import order_storage, OrderStatus, PaymentMethod
 # Импорт функции для отправки в телеграм (опционально)
 try:
     from telegram_bot_standalone import send_order_to_telegram
@@ -497,67 +497,131 @@ def api_proxy_nominatim():
 @app.route('/api/v2/orders', methods=['POST'])
 @rate_limit(max_requests=20, window_seconds=60)
 def api_create_order():
-    """API для создания новой заявки"""
+    """API для создания новой заявки (теперь с серверным перерасчётом)"""
     try:
         data = request.get_json()
-        
+        app.logger.info(f"RAW ORDER DATA: {data}")
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # Извлечение данных клиента
         customer_name = data.get('customer_name', '').strip()
         customer_phone = data.get('customer_phone', '').strip()
         order_notes = data.get('order_notes', '').strip()
         payment_method_str = data.get('payment_method', 'online')
-        
+
+        # Извлечение исходных параметров заказа (теперь только snake_case)
+        from_address = data.get('from_address', '').strip()
+        to_address = data.get('to_address', '').strip()
+        pickup_time = data.get('pickup_time')
+        duration_hours = data.get('duration_hours', 1)
+        urgent_pickup = data.get('urgent_pickup', False)
+        passengers = data.get('passengers', 0)
+        loaders = data.get('loaders', 0)
+        height = data.get('height')
+        length = data.get('length')
+        body_type_str = data.get('body_type', 'any')
+        selected_vehicle_id = data.get('selected_vehicle_id')
+
         # Валидация обязательных полей
         if not customer_name:
             return jsonify({'error': 'Customer name is required'}), 400
-        
         if not customer_phone:
             return jsonify({'error': 'Customer phone is required'}), 400
-        
+        if not from_address or not to_address:
+            return jsonify({'error': 'From and to addresses are required'}), 400
+        if not pickup_time:
+            return jsonify({'error': 'Pickup time is required'}), 400
+        if not selected_vehicle_id:
+            return jsonify({'error': 'Selected vehicle is required'}), 400
+
         # Валидация метода оплаты
         try:
             payment_method = PaymentMethod(payment_method_str)
         except ValueError:
             return jsonify({'error': 'Invalid payment method'}), 400
-        
-        # Получаем результат расчета из предыдущих шагов
-        calculation_result = data.get('calculation_result', {})
-        if not calculation_result:
-            return jsonify({'error': 'Calculation result is required'}), 400
-        
-        # Создаем заявку
-        order = create_order_from_calculation(
+
+        # Преобразование типа кузова
+        try:
+            body_type = BodyType(body_type_str)
+        except ValueError:
+            body_type = BodyType.ANY
+
+        # Создание объектов запроса
+        route_request = RouteRequest(
+            from_address=from_address,
+            to_address=to_address,
+            distance=None
+        )
+        time_request = TimeRequest(
+            pickup_time=pickup_time,
+            duration_hours=duration_hours,
+            urgent_pickup=urgent_pickup
+        )
+        vehicle_request = VehicleRequest(
+            passengers=passengers,
+            loaders=loaders,
+            height=height,
+            length=length,
+            body_type=body_type
+        )
+
+        # Серверный перерасчёт заказа
+        try:
+            calculation_result = CalculatorServiceV2.calculate_complete(
+                route_request,
+                time_request,
+                vehicle_request,
+                selected_vehicle_id
+            )
+        except Exception as e:
+            app.logger.error(f"Order calculation error: {str(e)}")
+            return jsonify({'error': 'Order calculation failed', 'details': str(e)}), 400
+
+        # Формируем Order только на основе серверного расчёта
+        from app.order_models import Order
+        order = Order(
+            id=None,
             customer_name=customer_name,
             customer_phone=customer_phone,
-            calculation_result=calculation_result,
+            from_address=from_address,
+            to_address=to_address,
+            pickup_time=pickup_time,
+            duration_hours=duration_hours,
+            passengers=passengers,
+            loaders=loaders,
+            selected_vehicle=calculation_result.step2_vehicles[0].to_dict() if calculation_result.step2_vehicles else {},
+            total_cost=calculation_result.step3_total,
             order_notes=order_notes,
             payment_method=payment_method
         )
-        
+
         # Сохраняем заявку
         order_id = order_storage.add_order(order)
-        
+
         # Отправляем уведомление в телеграм
         order_data = order.to_dict()
-        telegram_sent = send_telegram_message_direct(order_data)
+        app.logger.info(f"Attempting to send order {order_id} to Telegram. Order data: {order_data}")
         
+        telegram_sent = send_telegram_message_direct(order_data)
+
         if telegram_sent:
             order.mark_telegram_sent()
             order_storage.update_order(order)
-        
+            app.logger.info(f"✅ Telegram notification sent successfully for order {order_id}")
+        else:
+            app.logger.error(f"❌ Failed to send Telegram notification for order {order_id}")
+
         # Логирование
-        app.logger.info(f"Order created: {order_id}, customer: {customer_name}, phone: {customer_phone}")
-        
+        app.logger.info(f"Order created: {order_id}, customer: {customer_name}, phone: {customer_phone}, total_cost: {order.total_cost}")
+
         return jsonify({
             'success': True,
             'order_id': order_id,
             'telegram_sent': telegram_sent,
             'message': 'Order created successfully'
         })
-        
+
     except Exception as e:
         app.logger.error(f"Order creation error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -734,12 +798,15 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
         bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         chat_id = os.getenv('TELEGRAM_CHAT_ID')
         
+        app.logger.info(f"Telegram sending - Bot token: {'SET' if bot_token else 'NOT SET'}, Chat ID: {'SET' if chat_id else 'NOT SET'}")
+        
         if not bot_token or not chat_id:
             logger.error("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены")
             return False
         
         # Формируем сообщение
         message = format_order_message(order_data)
+        app.logger.info(f"Formatted Telegram message length: {len(message)} characters")
         
         # Отправляем через Telegram API
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -749,7 +816,10 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
             'parse_mode': 'HTML'
         }
         
+        app.logger.info(f"Sending Telegram request to: {url}")
         response = requests.post(url, json=data, timeout=10)
+        
+        app.logger.info(f"Telegram API response status: {response.status_code}")
         
         if response.status_code == 200:
             result = response.json()
@@ -760,7 +830,7 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
                 app.logger.error(f"Ошибка Telegram API: {result.get('description')}")
                 return False
         else:
-            app.logger.error(f"HTTP ошибка при отправке в Telegram: {response.status_code}")
+            app.logger.error(f"HTTP ошибка при отправке в Telegram: {response.status_code}, Response: {response.text}")
             return False
             
     except Exception as e:
@@ -786,12 +856,21 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
         payment_method = order_data.get('payment_method', 'Не указано')
         
         # Форматируем время
-        if pickup_time:
+        if pickup_time and pickup_time != 'Не указано':
             try:
-                pickup_dt = datetime.fromisoformat(pickup_time.replace('Z', '+00:00'))
-                pickup_str = pickup_dt.strftime('%d.%m.%Y в %H:%M')
-            except:
-                pickup_str = pickup_time
+                # Проверяем, является ли pickup_time уже datetime объектом
+                if isinstance(pickup_time, datetime):
+                    pickup_str = pickup_time.strftime('%d.%m.%Y в %H:%M')
+                else:
+                    # Пытаемся парсить строку
+                    pickup_str = pickup_time
+                    # Если это ISO формат, конвертируем
+                    if 'T' in pickup_time or '-' in pickup_time:
+                        pickup_dt = datetime.fromisoformat(pickup_time.replace('Z', '+00:00'))
+                        pickup_str = pickup_dt.strftime('%d.%m.%Y в %H:%M')
+            except Exception as e:
+                app.logger.warning(f"Failed to format pickup_time '{pickup_time}': {e}")
+                pickup_str = str(pickup_time) if pickup_time else 'Не указано'
         else:
             pickup_str = 'Не указано'
         
@@ -825,3 +904,87 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
     except Exception as e:
         app.logger.error(f"Ошибка форматирования сообщения: {e}")
         return f"🚛 Новая заявка #{order_data.get('id', 'Новый')} от {order_data.get('customer_name', 'Клиента')}"
+
+@app.route('/api/v2/calculate-price', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=60)
+def api_calculate_price():
+    """API для пересчета цены от backend (используется для обновления цены на фронтенде)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Извлечение данных
+        from_address = data.get('from_address', '').strip()
+        to_address = data.get('to_address', '').strip()
+        pickup_time = data.get('pickup_time')
+        duration_hours = data.get('duration_hours', 1)
+        urgent_pickup = data.get('urgent_pickup', False)
+        distance = data.get('distance')  # Расстояние от фронтенда
+        additional_services_cost = data.get('additional_services_cost', 0)
+        passengers = data.get('passengers', 0)
+        loaders = data.get('loaders', 0)
+        height = data.get('height')
+        length = data.get('length')
+        body_type = data.get('body_type', 'any')
+        selected_vehicle_id = data.get('selected_vehicle_id')
+        
+        # Валидация обязательных полей
+        if not from_address or not to_address:
+            return jsonify({'error': 'From and to addresses are required'}), 400
+        
+        if not pickup_time:
+            return jsonify({'error': 'Pickup time is required'}), 400
+        
+        # Создание объектов запроса
+        route_request = RouteRequest(
+            from_address=from_address,
+            to_address=to_address,
+            distance=distance  # Используем расстояние от фронтенда
+        )
+        
+        time_request = TimeRequest(
+            pickup_time=pickup_time,
+            duration_hours=duration_hours,
+            urgent_pickup=urgent_pickup
+        )
+        
+        vehicle_request = VehicleRequest(
+            passengers=passengers,
+            loaders=loaders,
+            height=height,
+            length=length,
+            body_type=body_type
+        )
+        
+        # Полный расчет стоимости (все шаги)
+        step1_result = CalculatorServiceV2.calculate_step1(route_request, time_request)
+        step2_result = CalculatorServiceV2.calculate_step2(vehicle_request)
+        
+        # Если выбран конкретный транспорт, используем его
+        if selected_vehicle_id:
+            vehicle_db = VehicleDatabase()
+            selected_vehicle = vehicle_db.get_vehicle_by_id(selected_vehicle_id)
+            if selected_vehicle:
+                step3_result = CalculatorServiceV2.calculate_step3(step1_result, selected_vehicle, loaders, duration_hours, additional_services_cost)
+            else:
+                step3_result = CalculatorServiceV2.calculate_step3(step1_result, None, loaders, duration_hours, additional_services_cost)
+        else:
+            step3_result = CalculatorServiceV2.calculate_step3(step1_result, None, loaders, duration_hours, additional_services_cost)
+        
+        # Логирование запроса
+        app.logger.info(f"Price recalculation: {from_address} -> {to_address}, total: {step3_result['total']}")
+        
+        return jsonify({
+            'success': True,
+            'calculated_total': step3_result['total'],
+            'step1_cost': step1_result['total'],
+            'step2_cost': 0,  # step2_result - это список транспорта, не стоимость
+            'step3_cost': step3_result['total'],
+            'breakdown': step3_result
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Price calculation error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500

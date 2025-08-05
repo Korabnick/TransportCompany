@@ -15,8 +15,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем только необходимые файлы для телеграм бота
-COPY telegram_bot_standalone.py .
-COPY run_telegram_bot.py .
+COPY telegram_service/telegram_bot_standalone.py .
+COPY telegram_service/run_telegram_bot.py .
 
 # Создаем директорию для логов
 RUN mkdir -p /tmp/prometheus /tmp/logs

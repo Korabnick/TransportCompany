@@ -28,8 +28,8 @@ services:
 
   telegram-bot:
     build:
-      context: ./telegram_service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: telegram_service/Dockerfile
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
