@@ -380,6 +380,9 @@ class CalculatorV2 {
                 this.submitOrder();
             });
         }
+        
+        // Обработка событий поля "Примечания к заказу"
+        this.bindOrderNotesEvents();
     }
     
     bindCommonEvents() {
@@ -1312,6 +1315,51 @@ class CalculatorV2 {
         }
     }
     
+    bindOrderNotesEvents() {
+        const orderNotesBtn = document.getElementById('orderNotesBtn');
+        const orderNotesContent = document.getElementById('orderNotesContent');
+        const orderNotesIcon = document.getElementById('orderNotesIcon');
+        
+        if (orderNotesBtn && orderNotesContent) {
+            orderNotesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.toggleOrderNotes(orderNotesContent, orderNotesIcon);
+            });
+        }
+    }
+    
+    toggleOrderNotes(content, icon) {
+        const isHidden = content.classList.contains('hidden');
+        
+        if (isHidden) {
+            // Показываем контент
+            content.classList.remove('hidden');
+            content.style.maxHeight = '0';
+            content.style.overflow = 'hidden';
+            
+            // Плавная анимация
+            setTimeout(() => {
+                content.style.transition = 'max-height 0.3s ease-in-out';
+                content.style.maxHeight = content.scrollHeight + 'px';
+            }, 10);
+            
+            // Меняем иконку
+            icon.className = 'ri-remove-circle-line mr-2 transition-transform hover:scale-125';
+        } else {
+            // Скрываем контент
+            content.style.maxHeight = '0';
+            
+            setTimeout(() => {
+                content.classList.add('hidden');
+                content.style.transition = '';
+                content.style.maxHeight = '';
+            }, 300);
+            
+            // Меняем иконку
+            icon.className = 'ri-add-circle-line mr-2 transition-transform hover:scale-125';
+        }
+    }
+    
     toggleAdditionalServices(content, icon) {
         const isHidden = content.classList.contains('hidden');
         
@@ -1481,6 +1529,7 @@ class CalculatorV2 {
         try {
             const name = document.getElementById('customerName')?.value;
             const phone = document.getElementById('customerPhone')?.value;
+            const orderNotes = document.getElementById('orderNotes')?.value || '';
             
             if (!name || !phone) {
                 this.showError('Пожалуйста, заполните все обязательные поля');
@@ -1492,13 +1541,141 @@ class CalculatorV2 {
                 return;
             }
             
-            // Здесь будет отправка заказа на сервер
-            this.showError('Функция оформления заказа в разработке');
+            // Проверяем, что у нас есть все необходимые данные для заявки
+            if (!this.calculationData.step1 || !this.calculationData.step2 || !this.calculationData.step3) {
+                this.showError('Пожалуйста, заполните все шаги калькулятора');
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            const submitBtn = document.querySelector('#step3 button[class*="bg-primary"]');
+            const originalText = submitBtn?.textContent;
+            if (submitBtn) {
+                submitBtn.textContent = 'Отправка...';
+                submitBtn.disabled = true;
+            }
+            
+            // Формируем данные заявки
+            const orderData = {
+                customer_name: name,
+                customer_phone: phone,
+                order_notes: orderNotes,
+                payment_method: 'online', // По умолчанию онлайн оплата
+                calculation_result: {
+                    route: {
+                        from_address: this.calculationData.step1.from_address || '',
+                        to_address: this.calculationData.step1.to_address || '',
+                        distance: this.calculationData.step1.distance || 0,
+                        pickup_time: this.calculationData.step1.pickup_time || '',
+                        duration_hours: this.calculationData.step1.duration_hours || 1,
+                        urgent_pickup: this.calculationData.step1.urgent_pickup || false
+                    },
+                    selected_vehicle: {
+                        id: this.selectedVehicle.id,
+                        name: this.selectedVehicle.name,
+                        passengers: this.calculationData.step2.passengers || 0,
+                        loaders: this.calculationData.step2.loaders || 0,
+                        price_per_hour: this.selectedVehicle.price_per_km,
+                        price_per_km: this.selectedVehicle.price_per_km,
+                        base_price: this.selectedVehicle.base_price
+                    },
+                    total_cost: this.calculationData.step3.total_cost || 0,
+                    breakdown: this.calculationData.step3.breakdown || {}
+                }
+            };
+            
+            // Отправляем заявку на сервер
+            const response = await this.makeRequest('/api/v2/orders', 'POST', orderData);
+            
+            if (response.success) {
+                // Показываем успешное сообщение
+                showNotification('Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.', 'success');
+                
+                // Очищаем форму
+                this.resetCalculator();
+                
+                // Переключаемся на первый шаг
+                this.showStep1();
+                
+            } else {
+                this.showError(response.error || 'Ошибка отправки заявки');
+            }
             
         } catch (error) {
             console.error('Order submission error:', error);
             this.showError('Ошибка оформления заказа');
+        } finally {
+            // Восстанавливаем кнопку
+            const submitBtn = document.querySelector('#step3 button[class*="bg-primary"]');
+            if (submitBtn) {
+                submitBtn.textContent = 'Оформить сейчас';
+                submitBtn.disabled = false;
+            }
         }
+    }
+    
+    resetCalculator() {
+        // Очищаем все поля формы
+        const inputs = document.querySelectorAll('#step1 input, #step3 input');
+        inputs.forEach(input => {
+            if (input.type !== 'radio') {
+                input.value = '';
+            }
+        });
+        
+        // Очищаем поле "Примечания к заказу"
+        const orderNotes = document.getElementById('orderNotes');
+        if (orderNotes) {
+            orderNotes.value = '';
+        }
+        
+        // Скрываем поле "Примечания к заказу"
+        const orderNotesContent = document.getElementById('orderNotesContent');
+        const orderNotesIcon = document.getElementById('orderNotesIcon');
+        if (orderNotesContent && orderNotesIcon) {
+            orderNotesContent.classList.add('hidden');
+            orderNotesContent.style.transition = '';
+            orderNotesContent.style.maxHeight = '';
+            orderNotesIcon.className = 'ri-add-circle-line mr-2 transition-transform hover:scale-125';
+        }
+        
+        // Сбрасываем выбранные значения
+        this.selectedVehicle = null;
+        this.calculationData = {
+            step1: {},
+            step2: {},
+            step3: {}
+        };
+        
+        // Сбрасываем кнопки пассажиров и грузчиков
+        document.querySelectorAll('.passenger-btn, .loader-btn').forEach(btn => {
+            btn.classList.remove('bg-primary', 'text-white');
+        });
+        
+        // Сбрасываем радиокнопки
+        document.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.checked = false;
+            const indicator = radio.nextElementSibling?.querySelector('span');
+            if (indicator) {
+                indicator.classList.remove('bg-primary');
+                indicator.classList.add('bg-transparent');
+            }
+        });
+        
+        // Устанавливаем первую радиокнопку как активную
+        const firstRadio = document.querySelector('input[type="radio"]');
+        if (firstRadio) {
+            firstRadio.checked = true;
+            const indicator = firstRadio.nextElementSibling?.querySelector('span');
+            if (indicator) {
+                indicator.classList.remove('bg-transparent');
+                indicator.classList.add('bg-primary');
+            }
+        }
+        
+        // Очищаем отображение стоимости
+        this.updateRouteCostDisplay();
+        this.updateStep3Display({ total_cost: 0, breakdown: {} });
     }
 }
 
@@ -1630,63 +1807,8 @@ function initializeAdditionalFeatures() {
         });
     }
     
-    // Функционал кнопки "примечания к заказу"
-    const orderNotesBtn = document.getElementById('orderNotesBtn');
-    const orderNotesPopup = document.getElementById('orderNotesPopup');
-    const closeOrderNotesPopup = document.getElementById('closeOrderNotesPopup');
-    const cancelOrderNotes = document.getElementById('cancelOrderNotes');
-    const saveOrderNotes = document.getElementById('saveOrderNotes');
-    const orderNotesText = document.getElementById('orderNotesText');
-    
-    if (orderNotesBtn && orderNotesPopup) {
-        orderNotesBtn.addEventListener('click', function() {
-            orderNotesPopup.classList.remove('hidden');
-            orderNotesText.focus();
-        });
-    }
-    
-    function closePopup() {
-        orderNotesPopup.classList.add('hidden');
-        orderNotesText.value = '';
-    }
-    
-    if (closeOrderNotesPopup) {
-        closeOrderNotesPopup.addEventListener('click', closePopup);
-    }
-    
-    if (cancelOrderNotes) {
-        cancelOrderNotes.addEventListener('click', closePopup);
-    }
-    
-    if (saveOrderNotes) {
-        saveOrderNotes.addEventListener('click', function() {
-            const notes = orderNotesText.value.trim();
-            if (notes) {
-                // Здесь можно сохранить примечания в переменную или отправить на сервер
-                console.log('Примечания к заказу:', notes);
-                
-                // Показываем уведомление о сохранении
-                showNotification('Примечания к заказу сохранены', 'success');
-            }
-            closePopup();
-        });
-    }
-    
-    // Закрытие popup при клике вне его
-    if (orderNotesPopup) {
-        orderNotesPopup.addEventListener('click', function(e) {
-            if (e.target === orderNotesPopup) {
-                closePopup();
-            }
-        });
-    }
-    
-    // Закрытие popup по клавише Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && !orderNotesPopup.classList.contains('hidden')) {
-            closePopup();
-        }
-    });
+    // Удаляем старый функционал модального окна "примечания к заказу"
+    // Новый функционал реализован в классе CalculatorV2
 }
 
 // Функция для показа уведомлений

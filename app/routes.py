@@ -5,10 +5,24 @@ from app.models import (
     RouteRequest, TimeRequest, VehicleRequest, BodyType, 
     VehicleDatabase, CalculationResult
 )
+from app.order_models import order_storage, create_order_from_calculation, OrderStatus, PaymentMethod
+# Импорт функции для отправки в телеграм (опционально)
+try:
+    from telegram_bot_standalone import send_order_to_telegram
+except ImportError:
+    # Если модуль недоступен, создаем заглушку
+    def send_order_to_telegram(order_data):
+        print(f"Telegram bot not available, would send: {order_data}")
+        return False
+
 import json
 import requests
 from datetime import datetime
 from typing import Dict, Any
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 @app.route('/')
 def index():
@@ -479,3 +493,335 @@ def api_proxy_nominatim():
     except Exception as e:
         app.logger.error(f"Nominatim proxy error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/orders', methods=['POST'])
+@rate_limit(max_requests=20, window_seconds=60)
+def api_create_order():
+    """API для создания новой заявки"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Извлечение данных клиента
+        customer_name = data.get('customer_name', '').strip()
+        customer_phone = data.get('customer_phone', '').strip()
+        order_notes = data.get('order_notes', '').strip()
+        payment_method_str = data.get('payment_method', 'online')
+        
+        # Валидация обязательных полей
+        if not customer_name:
+            return jsonify({'error': 'Customer name is required'}), 400
+        
+        if not customer_phone:
+            return jsonify({'error': 'Customer phone is required'}), 400
+        
+        # Валидация метода оплаты
+        try:
+            payment_method = PaymentMethod(payment_method_str)
+        except ValueError:
+            return jsonify({'error': 'Invalid payment method'}), 400
+        
+        # Получаем результат расчета из предыдущих шагов
+        calculation_result = data.get('calculation_result', {})
+        if not calculation_result:
+            return jsonify({'error': 'Calculation result is required'}), 400
+        
+        # Создаем заявку
+        order = create_order_from_calculation(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            calculation_result=calculation_result,
+            order_notes=order_notes,
+            payment_method=payment_method
+        )
+        
+        # Сохраняем заявку
+        order_id = order_storage.add_order(order)
+        
+        # Отправляем уведомление в телеграм
+        order_data = order.to_dict()
+        telegram_sent = send_telegram_message_direct(order_data)
+        
+        if telegram_sent:
+            order.mark_telegram_sent()
+            order_storage.update_order(order)
+        
+        # Логирование
+        app.logger.info(f"Order created: {order_id}, customer: {customer_name}, phone: {customer_phone}")
+        
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'telegram_sent': telegram_sent,
+            'message': 'Order created successfully'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Order creation error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/orders/<order_id>', methods=['GET'])
+@rate_limit(max_requests=20, window_seconds=60)
+def api_get_order(order_id):
+    """API для получения заявки по ID"""
+    try:
+        order = order_storage.get_order(order_id)
+        
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'order': order.to_dict()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get order error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/orders/<order_id>/status', methods=['PUT'])
+@rate_limit(max_requests=10, window_seconds=60)
+def api_update_order_status(order_id):
+    """API для обновления статуса заявки"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        new_status_str = data.get('status')
+        if not new_status_str:
+            return jsonify({'error': 'Status is required'}), 400
+        
+        # Валидация статуса
+        try:
+            new_status = OrderStatus(new_status_str)
+        except ValueError:
+            return jsonify({'error': 'Invalid status'}), 400
+        
+        # Получаем заявку
+        order = order_storage.get_order(order_id)
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
+        
+        # Обновляем статус
+        order.update_status(new_status)
+        order_storage.update_order(order)
+        
+        app.logger.info(f"Order {order_id} status updated to {new_status.value}")
+        
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'status': new_status.value,
+            'message': 'Order status updated successfully'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Update order status error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/orders', methods=['GET'])
+@rate_limit(max_requests=30, window_seconds=60)
+def api_get_orders():
+    """API для получения списка заявок с фильтрацией"""
+    try:
+        # Параметры фильтрации
+        status = request.args.get('status')
+        customer_phone = request.args.get('customer_phone')
+        limit = request.args.get('limit', 50, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        
+        # Получаем заявки
+        if status:
+            try:
+                status_enum = OrderStatus(status)
+                orders = order_storage.get_orders_by_status(status_enum)
+            except ValueError:
+                return jsonify({'error': 'Invalid status'}), 400
+        elif customer_phone:
+            orders = order_storage.get_orders_by_customer(customer_phone)
+        else:
+            orders = order_storage.get_all_orders()
+        
+        # Сортируем по дате создания (новые сначала)
+        orders.sort(key=lambda x: x.created_at, reverse=True)
+        
+        # Применяем пагинацию
+        total_count = len(orders)
+        orders = orders[offset:offset + limit]
+        
+        return jsonify({
+            'success': True,
+            'orders': [order.to_dict() for order in orders],
+            'total_count': total_count,
+            'limit': limit,
+            'offset': offset
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get orders error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/orders/stats', methods=['GET'])
+@rate_limit(max_requests=20, window_seconds=60)
+def api_get_orders_stats():
+    """API для получения статистики по заявкам"""
+    try:
+        all_orders = order_storage.get_all_orders()
+        recent_orders = order_storage.get_recent_orders(24)  # За последние 24 часа
+        
+        # Статистика по статусам
+        status_stats = {}
+        for status in OrderStatus:
+            status_stats[status.value] = len([o for o in all_orders if o.status == status])
+        
+        # Статистика по методам оплаты
+        payment_stats = {}
+        for payment in PaymentMethod:
+            payment_stats[payment.value] = len([o for o in all_orders if o.payment_method == payment])
+        
+        # Общая статистика
+        total_orders = len(all_orders)
+        total_recent = len(recent_orders)
+        total_revenue = sum(order.total_cost for order in all_orders)
+        recent_revenue = sum(order.total_cost for order in recent_orders)
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_orders': total_orders,
+                'recent_orders_24h': total_recent,
+                'total_revenue': total_revenue,
+                'recent_revenue_24h': recent_revenue,
+                'status_distribution': status_stats,
+                'payment_distribution': payment_stats
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get orders stats error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/telegram/test', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=60)
+def api_test_telegram():
+    """API для тестирования отправки в телеграм"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Отправляем тестовое сообщение
+        telegram_sent = send_telegram_message_direct(data)
+        
+        return jsonify({
+            'success': True,
+            'telegram_sent': telegram_sent,
+            'message': 'Test message sent to Telegram' if telegram_sent else 'Failed to send test message'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Telegram test error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
+    """Прямая отправка сообщения в Telegram через HTTP API"""
+    try:
+        bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        
+        if not bot_token or not chat_id:
+            logger.error("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены")
+            return False
+        
+        # Формируем сообщение
+        message = format_order_message(order_data)
+        
+        # Отправляем через Telegram API
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'HTML'
+        }
+        
+        response = requests.post(url, json=data, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('ok'):
+                app.logger.info(f"Telegram сообщение отправлено успешно. Message ID: {result['result']['message_id']}")
+                return True
+            else:
+                app.logger.error(f"Ошибка Telegram API: {result.get('description')}")
+                return False
+        else:
+            app.logger.error(f"HTTP ошибка при отправке в Telegram: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        app.logger.error(f"Ошибка при отправке в Telegram: {e}")
+        return False
+
+def format_order_message(order_data: Dict[str, Any]) -> str:
+    """Форматирование сообщения о заказе"""
+    try:
+        # Извлекаем данные заказа
+        order_id = order_data.get('id', 'Новый')
+        customer_name = order_data.get('customer_name', 'Не указано')
+        customer_phone = order_data.get('customer_phone', 'Не указано')
+        from_address = order_data.get('from_address', 'Не указано')
+        to_address = order_data.get('to_address', 'Не указано')
+        pickup_time = order_data.get('pickup_time', 'Не указано')
+        duration_hours = order_data.get('duration_hours', 0)
+        passengers = order_data.get('passengers', 0)
+        loaders = order_data.get('loaders', 0)
+        selected_vehicle = order_data.get('selected_vehicle', {})
+        total_cost = order_data.get('total_cost', 0)
+        order_notes = order_data.get('order_notes', '')
+        payment_method = order_data.get('payment_method', 'Не указано')
+        
+        # Форматируем время
+        if pickup_time:
+            try:
+                pickup_dt = datetime.fromisoformat(pickup_time.replace('Z', '+00:00'))
+                pickup_str = pickup_dt.strftime('%d.%m.%Y в %H:%M')
+            except:
+                pickup_str = pickup_time
+        else:
+            pickup_str = 'Не указано'
+        
+        # Формируем сообщение
+        message = f"""
+🚛 <b>НОВАЯ ЗАЯВКА #{order_id}</b>
+
+👤 <b>Клиент:</b> {customer_name}
+📞 <b>Телефон:</b> {customer_phone}
+
+📍 <b>Откуда:</b> {from_address}
+🎯 <b>Куда:</b> {to_address}
+
+⏰ <b>Время подачи:</b> {pickup_str}
+⏱ <b>Длительность:</b> {duration_hours} ч.
+
+🚗 <b>Транспорт:</b> {selected_vehicle.get('name', 'Не выбран')}
+👥 <b>Пассажиры:</b> {passengers}
+🏋️ <b>Грузчики:</b> {loaders}
+
+💰 <b>Стоимость:</b> {total_cost:,} ₽
+💳 <b>Оплата:</b> {payment_method}
+
+📝 <b>Примечания:</b> {order_notes if order_notes else 'Нет'}
+
+🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
+        """
+        
+        return message.strip()
+        
+    except Exception as e:
+        app.logger.error(f"Ошибка форматирования сообщения: {e}")
+        return f"🚛 Новая заявка #{order_data.get('id', 'Новый')} от {order_data.get('customer_name', 'Клиента')}"

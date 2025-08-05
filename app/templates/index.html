@@ -569,10 +569,26 @@
                 </label>
               </div>
             </div>
-            <button id="orderNotesBtn" class="text-primary flex items-center transition-colors hover:text-primary/80">
-              <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125"></i>
-              <span>Примечания к заказу</span>
-            </button>
+            <div class="order-notes-container">
+              <button
+                id="orderNotesBtn"
+                class="w-full text-left text-primary flex items-center mt-4 transition-colors hover:text-primary/80"
+              >
+                <i class="ri-add-circle-line mr-2 transition-transform hover:scale-125" id="orderNotesIcon"></i>
+                <span>Примечания к заказу</span>
+              </button>
+              
+              <!-- Скрытый блок с примечаниями -->
+              <div id="orderNotesContent" class="hidden mt-4">
+                <label class="block text-sm text-gray-600 mb-1">Примечания к заказу</label>
+                <textarea
+                  id="orderNotes"
+                  placeholder="Дополнительная информация о грузе, особые требования и т.д."
+                  rows="3"
+                  class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                ></textarea>
+              </div>
+            </div>
             <div class="mt-4 space-y-3">
               <!-- Стоимость маршрута -->
               <div class="flex justify-between text-sm items-center">

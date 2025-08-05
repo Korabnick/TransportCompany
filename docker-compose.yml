@@ -13,6 +13,8 @@ services:
       - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
       - prometheus_multiproc_dir=/tmp/prometheus
       - REDIS_URL=${REDIS_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     expose:
       - 5000
     networks:
@@ -23,6 +25,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - PYTHONUNBUFFERED=1
+    networks:
+      - backend
+    depends_on:
+      - app
+    restart: unless-stopped
+    volumes:
+      - telegram_logs:/tmp/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   nginx:
     image: nginx:alpine
@@ -81,3 +105,7 @@ services:
 
 networks:
   backend:
+    driver: bridge
+
+volumes:
+  telegram_logs:

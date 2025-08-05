@@ -603,6 +603,48 @@ body, button, input, select, textarea {
   }
 }
 
+/* Стили для выезжающего поля "Примечания к заказу" */
+#orderNotesContent {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.dark #orderNotesContent {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+#orderNotesContent textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 100px;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  transition: border-color 0.2s;
+}
+
+#orderNotesContent textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+#orderNotesContent textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
 /* Стили для popup окна примечаний к заказу */
 #orderNotesPopup {
   backdrop-filter: blur(4px);

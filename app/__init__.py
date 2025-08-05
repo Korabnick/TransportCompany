@@ -46,5 +46,12 @@ metrics.register_default(
     )
 )
 
-# Импорт маршрутов
+def create_app():
+    """Фабрика для создания Flask приложения"""
+    # Импортируем маршруты здесь, чтобы избежать циклических импортов
+    from app import routes
+    
+    return app
+
+# Инициализируем маршруты при импорте модуля
 from app import routes
