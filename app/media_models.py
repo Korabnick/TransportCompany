@@ -3,6 +3,8 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 import os
 from datetime import datetime
+import subprocess
+from PIL import Image
 
 class MediaType(Enum):
     IMAGE = "image"
@@ -65,103 +67,75 @@ class MediaDatabase:
     def __init__(self):
         self._media_items = self._initialize_media()
     
+    def _generate_image_thumbnail(self, src_path, thumb_path):
+        try:
+            with Image.open(src_path) as img:
+                img.thumbnail((400, 400))
+                img.save(thumb_path, "JPEG")
+        except Exception as e:
+            print(f"Ошибка генерации thumbnail для {src_path}: {e}")
+
+    def _generate_video_thumbnail(self, src_path, thumb_path):
+        try:
+            # ffmpeg должен быть установлен в системе
+            subprocess.run([
+                'ffmpeg', '-y', '-i', src_path, '-ss', '00:00:01.000', '-vframes', '1', thumb_path
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"Ошибка генерации thumbnail для видео {src_path}: {e}")
+
     def _initialize_media(self) -> List[MediaItem]:
-        """Инициализация медиа-базы с демо-данными"""
-        return [
-            # Изображения
-            MediaItem(
-                id="img_001",
-                title="Грузоперевозка мебели",
-                description="Профессиональная перевозка мебели с упаковкой и сборкой",
+        """Динамическая инициализация медиа-базы по содержимому папок"""
+        media_items = []
+        images_dir = os.path.join(os.path.dirname(__file__), 'static', 'media', 'images')
+        videos_dir = os.path.join(os.path.dirname(__file__), 'static', 'media', 'videos')
+        thumbs_dir = os.path.join(os.path.dirname(__file__), 'static', 'media', 'thumbnails')
+        os.makedirs(thumbs_dir, exist_ok=True)
+
+        # Изображения
+        for fname in os.listdir(images_dir):
+            if not fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif')):
+                continue
+            file_path = f"/static/media/images/{fname}"
+            abs_file_path = os.path.join(images_dir, fname)
+            thumb_name = os.path.splitext(fname)[0] + '_thumb.jpg'
+            abs_thumb_path = os.path.join(thumbs_dir, thumb_name)
+            thumb_path = f"/static/media/thumbnails/{thumb_name}" if os.path.exists(abs_thumb_path) else None
+            if not os.path.exists(abs_thumb_path):
+                self._generate_image_thumbnail(abs_file_path, abs_thumb_path)
+                thumb_path = f"/static/media/thumbnails/{thumb_name}" if os.path.exists(abs_thumb_path) else None
+            media_items.append(MediaItem(
+                id=f"img_{os.path.splitext(fname)[0]}",
+                title=os.path.splitext(fname)[0].replace('_', ' ').capitalize(),
+                description="",  # Описание пустое
                 media_type=MediaType.IMAGE,
-                category=MediaCategory.TRANSPORT,
-                file_path="/static/media/images/furniture_transport.jpg",
-                thumbnail_path="/static/media/thumbnails/furniture_transport_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="img_002",
-                title="Перевозка бытовой техники",
-                description="Безопасная транспортировка холодильников, стиральных машин",
-                media_type=MediaType.IMAGE,
-                category=MediaCategory.TRANSPORT,
-                file_path="/static/media/images/appliance_transport.jpg",
-                thumbnail_path="/static/media/thumbnails/appliance_transport_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="img_003",
-                title="Работа грузчиков",
-                description="Профессиональная команда грузчиков за работой",
-                media_type=MediaType.IMAGE,
-                category=MediaCategory.LOADING,
-                file_path="/static/media/images/loaders_work.jpg",
-                thumbnail_path="/static/media/thumbnails/loaders_work_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="img_004",
-                title="Специальное оборудование",
-                description="Использование спецтехники для сложных перевозок",
-                media_type=MediaType.IMAGE,
-                category=MediaCategory.EQUIPMENT,
-                file_path="/static/media/images/special_equipment.jpg",
-                thumbnail_path="/static/media/thumbnails/special_equipment_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="img_005",
-                title="Доставка в офис",
-                description="Быстрая доставка грузов в офисные помещения",
-                media_type=MediaType.IMAGE,
-                category=MediaCategory.DELIVERY,
-                file_path="/static/media/images/office_delivery.jpg",
-                thumbnail_path="/static/media/thumbnails/office_delivery_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="img_006",
-                title="Наша команда",
-                description="Профессиональная команда водителей и грузчиков",
-                media_type=MediaType.IMAGE,
-                category=MediaCategory.TEAM,
-                file_path="/static/media/images/team_photo.jpg",
-                thumbnail_path="/static/media/thumbnails/team_photo_thumb.jpg",
-                width=1920,
-                height=1080
-            ),
-            
-            # Видео (используем placeholder изображения вместо видео файлов)
-            MediaItem(
-                id="vid_001",
-                title="Процесс погрузки",
-                description="Демонстрация профессиональной погрузки мебели",
+                category=MediaCategory.TRANSPORT,  # Можно доработать автоопределение
+                file_path=file_path,
+                thumbnail_path=thumb_path
+            ))
+
+        # Видео
+        for fname in os.listdir(videos_dir):
+            if not fname.lower().endswith(('.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm')):
+                continue
+            file_path = f"/static/media/videos/{fname}"
+            abs_file_path = os.path.join(videos_dir, fname)
+            thumb_name = os.path.splitext(fname)[0] + '_thumb.jpg'
+            abs_thumb_path = os.path.join(thumbs_dir, thumb_name)
+            thumb_path = f"/static/media/thumbnails/{thumb_name}" if os.path.exists(abs_thumb_path) else None
+            if not os.path.exists(abs_thumb_path):
+                self._generate_video_thumbnail(abs_file_path, abs_thumb_path)
+                thumb_path = f"/static/media/thumbnails/{thumb_name}" if os.path.exists(abs_thumb_path) else None
+            media_items.append(MediaItem(
+                id=f"vid_{os.path.splitext(fname)[0]}",
+                title=os.path.splitext(fname)[0].replace('_', ' ').capitalize(),
+                description="",  # Описание пустое
                 media_type=MediaType.VIDEO,
-                category=MediaCategory.LOADING,
-                file_path="/static/media/images/loaders_work.jpg",  # Используем изображение как placeholder
-                thumbnail_path="/static/media/thumbnails/loaders_work_thumb.jpg",
-                duration=120,  # 2 минуты
-                width=1920,
-                height=1080
-            ),
-            MediaItem(
-                id="vid_002",
-                title="Перевозка пианино",
-                description="Специальная перевозка музыкальных инструментов",
-                media_type=MediaType.VIDEO,
-                category=MediaCategory.TRANSPORT,
-                file_path="/static/media/videos/piano_transport.mp4",  # Реальный видео файл
-                thumbnail_path="/static/media/thumbnails/furniture_transport_thumb.jpg",
-                duration=180,  # 3 минуты
-                width=1920,
-                height=1080
-            )
-        ]
+                category=MediaCategory.TRANSPORT,  # Можно доработать автоопределение
+                file_path=file_path,
+                thumbnail_path=thumb_path
+            ))
+        return media_items
     
     def get_all_media(self) -> List[MediaItem]:
         """Получить все активные медиа-элементы"""

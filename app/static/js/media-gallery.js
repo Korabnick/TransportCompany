@@ -190,8 +190,8 @@ class MediaGallery {
                 data-media-type="video"
                 data-media-index="${index}"
             >
-            <button class="video-play-btn absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 hover:bg-opacity-50 transition-all">
-                <i class="ri-play-fill text-4xl text-white"></i>
+            <button class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full p-2 bg-white border border-gray-300 shadow-lg transition-colors transition-transform hover:bg-primary hover:border-primary hover:text-white dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-primary dark:hover:border-primary group">
+                <i class="ri-play-fill text-3xl text-gray-800 dark:text-white group-hover:text-white"></i>
             </button>
         `;
         
@@ -231,6 +231,11 @@ class MediaGallery {
         modalImage.alt = image.title;
         imageTitle.textContent = image.title;
         imageDescription.textContent = image.description;
+        if (!image.description || image.description.trim() === "") {
+            imageDescription.style.display = "none";
+        } else {
+            imageDescription.style.display = "";
+        }
         
         const overlay = modal.querySelector('.modal-overlay');
         overlay.classList.add('opacity-100', 'pointer-events-auto');
@@ -296,6 +301,11 @@ class MediaGallery {
         
         videoTitle.textContent = video.title;
         videoDescription.textContent = video.description;
+        if (!video.description || video.description.trim() === "") {
+            videoDescription.style.display = "none";
+        } else {
+            videoDescription.style.display = "";
+        }
         
         modal.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
         modal.classList.add('show');
