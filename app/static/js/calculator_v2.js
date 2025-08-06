@@ -61,6 +61,10 @@ class CalculatorV2 {
         
         console.log('Step1 elements found:', { fromInput, toInput, durationSelect, pickupTimeInput, urgentCheckbox });
         
+        // Переменные для сохранения состояния времени
+        let savedTimeRadios = null; // Сохраняем состояние радиальных кнопок
+        let savedManualTime = null; // Сохраняем время, введенное пользователем вручную
+        
         // Функция для проверки готовности к расчету маршрута
         const canCalculateRoute = () => {
             const fromAddress = fromInput?.value || '';
@@ -231,6 +235,10 @@ class CalculatorV2 {
                         this.showError('Минимальное время подачи - через 1 час от текущего времени.');
                     }
                 }
+                
+                // При изменении времени пользователем сбрасываем радиальные кнопки
+                this.resetTimeRadios();
+                savedManualTime = pickupTimeInput.value;
             });
             
             // Валидация при вводе
@@ -247,6 +255,10 @@ class CalculatorV2 {
                         return;
                     }
                 }
+                
+                // При вводе времени пользователем сбрасываем радиальные кнопки
+                this.resetTimeRadios();
+                savedManualTime = pickupTimeInput.value;
             });
             
             // Дополнительная валидация при потере фокуса
@@ -280,6 +292,7 @@ class CalculatorV2 {
             urgentCheckbox.addEventListener('change', () => {
                 console.log('Urgent checkbox changed');
                 const pickupTimeInput = document.getElementById('pickupTime');
+                const timeRadios = document.querySelectorAll('input[name="time"]');
                 
                 // Обновляем время последней активности и запускаем таймер
                 this.lastUserActivity = Date.now();
@@ -288,6 +301,19 @@ class CalculatorV2 {
                 if (urgentCheckbox.checked) {
                     // При включении срочной подачи
                     pickupTimeInput.disabled = true;
+                    
+                    // Сохраняем текущее состояние радиальных кнопок
+                    savedTimeRadios = Array.from(timeRadios).map(radio => ({
+                        element: radio,
+                        checked: radio.checked
+                    }));
+                    
+                    // Отключаем радиальные кнопки
+                    timeRadios.forEach(radio => {
+                        radio.disabled = true;
+                        radio.checked = false;
+                    });
+                    
                     const now = new Date();
                     const urgentTime = new Date(now.getTime() + 1200000); // +20 минут
                     const year = urgentTime.getFullYear();
@@ -305,18 +331,43 @@ class CalculatorV2 {
                     pickupTimeInput.disabled = false;
                     pickupTimeInput.max = '';
                     
-                    // Обновляем минимальное время до 1 часа
-                    const now = new Date();
-                    const minTime = new Date(now.getTime() + 3600000); // +1 час
-                    const year = minTime.getFullYear();
-                    const month = String(minTime.getMonth() + 1).padStart(2, '0');
-                    const day = minTime.getDate();
-                    const hours = String(minTime.getHours()).padStart(2, '0');
-                    const minutes = String(minTime.getMinutes()).padStart(2, '0');
-                    const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                    // Восстанавливаем радиальные кнопки
+                    timeRadios.forEach(radio => {
+                        radio.disabled = false;
+                    });
                     
-                    pickupTimeInput.min = minDateTime;
-                    pickupTimeInput.value = minDateTime;
+                    // Восстанавливаем сохраненное состояние радиальных кнопок или время
+                    if (savedTimeRadios) {
+                        savedTimeRadios.forEach(savedRadio => {
+                            if (savedRadio.element) {
+                                savedRadio.element.checked = savedRadio.checked;
+                            }
+                        });
+                        savedTimeRadios = null;
+                        
+                        // Если была выбрана радиальная кнопка, обновляем время
+                        const selectedRadio = Array.from(timeRadios).find(radio => radio.checked);
+                        if (selectedRadio) {
+                            this.updatePickupTime();
+                        }
+                    } else if (savedManualTime) {
+                        // Если было введено время вручную, восстанавливаем его
+                        pickupTimeInput.value = savedManualTime;
+                        savedManualTime = null;
+                    } else {
+                        // Иначе устанавливаем минимальное время
+                        const now = new Date();
+                        const minTime = new Date(now.getTime() + 3600000); // +1 час
+                        const year = minTime.getFullYear();
+                        const month = String(minTime.getMonth() + 1).padStart(2, '0');
+                        const day = String(minTime.getDate()).padStart(2, '0');
+                        const hours = String(minTime.getHours()).padStart(2, '0');
+                        const minutes = String(minTime.getMinutes()).padStart(2, '0');
+                        const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+                        
+                        pickupTimeInput.min = minDateTime;
+                        pickupTimeInput.value = minDateTime;
+                    }
                 }
                 
                 // Пересчитываем стоимость при изменении срочной подачи
@@ -332,6 +383,8 @@ class CalculatorV2 {
         const timeRadios = document.querySelectorAll('input[name="time"]');
         timeRadios.forEach(radio => {
             radio.addEventListener('change', () => {
+                // Очищаем сохраненное ручное время при выборе радиальной кнопки
+                savedManualTime = null;
                 this.updatePickupTime();
             });
         });
@@ -1907,6 +1960,13 @@ class CalculatorV2 {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
+    }
+    
+    resetTimeRadios() {
+        const timeRadios = document.querySelectorAll('input[name="time"]');
+        timeRadios.forEach(radio => {
+            radio.checked = false;
+        });
     }
 }
 

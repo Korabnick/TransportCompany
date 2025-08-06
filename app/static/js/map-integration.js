@@ -54,7 +54,8 @@ class MapIntegration {
         this.currentInputId = null;
         this.selectedCoordinates = null;
         this.selectedAddress = '';
-        this.currentButton = null; // Добавляем ссылку на текущую кнопку
+        this.currentButton = null;
+        this.isMapOpen = false; // Добавляем флаг для отслеживания состояния карты
         
         this.init();
     }
@@ -127,8 +128,13 @@ class MapIntegration {
             console.error('MapIntegration: mapSearchInput element not found');
         }
         
-        // Закрытие по клику вне popup
+        // Закрытие по клику вне popup - ИСПРАВЛЕНО
         document.addEventListener('click', (e) => {
+            // Проверяем, открыта ли карта
+            if (!this.isMapOpen) {
+                return;
+            }
+            
             const popup = document.getElementById('mapPopup');
             if (popup && !popup.contains(e.target) && !e.target.closest('.map-open-btn')) {
                 // Не закрываем popup если клик был на кнопке подтверждения
@@ -139,16 +145,16 @@ class MapIntegration {
             }
         });
         
-        // Закрытие popup при прокрутке страницы
+        // Закрытие popup при прокрутке страницы - ИСПРАВЛЕНО
         document.addEventListener('scroll', () => {
-            if (this.currentButton) {
+            if (this.isMapOpen && this.currentButton) {
                 this.closeMap();
             }
         });
         
-        // Перепозиционирование popup при изменении размера окна
+        // Перепозиционирование popup при изменении размера окна - ИСПРАВЛЕНО
         window.addEventListener('resize', () => {
-            if (this.currentButton) {
+            if (this.isMapOpen && this.currentButton) {
                 const popup = document.getElementById('mapPopup');
                 if (popup && !popup.classList.contains('hidden')) {
                     this.positionPopup(popup, this.currentButton);
@@ -239,6 +245,9 @@ class MapIntegration {
         // Показываем popup
         popup.classList.remove('hidden');
         
+        // Устанавливаем флаг открытой карты
+        this.isMapOpen = true;
+        
         // Инициализируем карту после небольшой задержки
         setTimeout(() => {
             this.initMap();
@@ -285,10 +294,30 @@ class MapIntegration {
     closeMap() {
         console.log('MapIntegration: closeMap called');
         
+        // Проверяем, открыта ли карта
+        if (!this.isMapOpen) {
+            console.log('MapIntegration: Map is not open, skipping close');
+            return;
+        }
+        
         const popup = document.getElementById('mapPopup');
         if (popup) {
             popup.classList.add('hidden');
         }
+        
+        // Уничтожаем карту, если она существует
+        if (this.map) {
+            try {
+                this.map.remove();
+                this.map = null;
+                console.log('MapIntegration: Map destroyed successfully');
+            } catch (error) {
+                console.error('MapIntegration: Error destroying map:', error);
+            }
+        }
+        
+        // Очищаем маркер
+        this.marker = null;
         
         // Очищаем выбранный адрес
         const selectedAddressSpan = document.getElementById('selectedAddress');
@@ -302,11 +331,14 @@ class MapIntegration {
             confirmBtn.disabled = true;
         }
         
+        // Сбрасываем флаг открытой карты
+        this.isMapOpen = false;
+        
         // Очищаем данные только после закрытия
         this.currentInputId = null;
         this.selectedCoordinates = null;
         this.selectedAddress = '';
-        this.currentButton = null; // Очищаем ссылку на кнопку
+        this.currentButton = null;
         
         console.log('MapIntegration: Map popup closed');
     }
@@ -318,6 +350,12 @@ class MapIntegration {
         
         if (!mapContainer) {
             console.error('MapIntegration: Map container not found!');
+            return;
+        }
+        
+        // Проверяем, не инициализирована ли уже карта
+        if (this.map) {
+            console.log('MapIntegration: Map already initialized, skipping');
             return;
         }
         
