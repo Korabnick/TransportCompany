@@ -159,6 +159,9 @@ class CalculatorServiceV2:
                 route_request.to_address
             )
         
+        # [НОВОЕ] Округляем расстояние до 1 знака после запятой
+        distance = round(distance, 1)
+        
         # Рассчитываем стоимость
         result = DistanceService.calculate_route_price(
             distance, 

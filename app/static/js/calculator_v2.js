@@ -516,12 +516,16 @@ class CalculatorV2 {
             
             const totalCost = this.calculateTotalCost(totalDistance, durationHours, urgentPickup);
             
+            // [НОВОЕ] Округляем общее расстояние до 1 знака после запятой
+            const roundedTotalDistance = Math.round(totalDistance * 10) / 10;
+            console.log(`Total distance calculated: ${totalDistance} km, rounded to: ${roundedTotalDistance} km`);
+            
             // Получаем значение pickup_time из поля ввода
             const pickupTimeInput = document.getElementById('pickupTime');
             const pickupTime = pickupTimeInput?.value || '';
             
             const routeData = {
-                distance: totalDistance,
+                distance: roundedTotalDistance,  // [НОВОЕ] Используем округлённое расстояние
                 duration: totalDuration,
                 from_address: fromAddress,
                 to_address: toAddress,
@@ -566,69 +570,80 @@ class CalculatorV2 {
         
         console.log('Address similarity analysis:', { fromWords, toWords, commonWords, similarity });
         
+        let distance;
+        
         // Если адреса очень похожи (много общих слов), считаем их близкими
         if (similarity > 0.3) {
             console.log('Addresses are very similar, estimating short distance');
-            return 0.5; // 500 метров
+            distance = 0.5; // 500 метров
         }
-        
         // Если адреса частично похожи, считаем их в одном районе
-        if (similarity > 0.1) {
+        else if (similarity > 0.1) {
             console.log('Addresses are partially similar, estimating local distance');
-            return 2.0; // 2 км
+            distance = 2.0; // 2 км
         }
-        
         // Если оба адреса содержат "спб" или "санкт-петербург" - это внутри города
-        if ((fromLower.includes('спб') || fromLower.includes('санкт-петербург') || fromLower.includes('питер')) &&
+        else if ((fromLower.includes('спб') || fromLower.includes('санкт-петербург') || fromLower.includes('питер')) &&
             (toLower.includes('спб') || toLower.includes('санкт-петербург') || toLower.includes('питер'))) {
             console.log('Both addresses are in SPb, estimating city distance');
-            return 15.0; // В пределах города
+            distance = 15.0; // В пределах города
         }
-        
         // Если один из адресов содержит "область" - это за городом
-        if (fromLower.includes('область') || toLower.includes('область')) {
+        else if (fromLower.includes('область') || toLower.includes('область')) {
             console.log('One address is in region, estimating regional distance');
-            return 45.0; // За городом
+            distance = 45.0; // За городом
         }
-        
         // Если адреса содержат названия районов СПб
-        const spbDistricts = ['московский', 'невский', 'центральный', 'адмиралтейский', 'василеостровский', 
-                             'петроградский', 'кировский', 'красногвардейский', 'калининский', 'выборгский',
-                             'приморский', 'петродворцовый', 'пушкинский', 'колпинский', 'красносельский',
-                             'курортный', 'кронштадтский'];
-        
-        const fromHasDistrict = spbDistricts.some(district => fromLower.includes(district));
-        const toHasDistrict = spbDistricts.some(district => toLower.includes(district));
-        
-        if (fromHasDistrict && toHasDistrict) {
-            console.log('Both addresses are in SPb districts, estimating inter-district distance');
-            return 20.0; // Между районами СПб
-        }
-        
-        // Если адреса содержат номера домов или улиц, пытаемся определить близость
-        const fromHasNumber = /\d+/.test(fromLower);
-        const toHasNumber = /\d+/.test(toLower);
-        
-        if (fromHasNumber && toHasNumber) {
-            // Извлекаем номера домов
-            const fromNumber = fromLower.match(/\d+/)?.[0];
-            const toNumber = toLower.match(/\d+/)?.[0];
+        else {
+            const spbDistricts = ['московский', 'невский', 'центральный', 'адмиралтейский', 'василеостровский', 
+                                 'петроградский', 'кировский', 'красногвардейский', 'калининский', 'выборгский',
+                                 'приморский', 'петродворцовый', 'пушкинский', 'колпинский', 'красносельский',
+                                 'курортный', 'кронштадтский'];
             
-            if (fromNumber && toNumber) {
-                const numberDiff = Math.abs(parseInt(fromNumber) - parseInt(toNumber));
-                if (numberDiff < 10) {
-                    console.log('Addresses have close house numbers, estimating very short distance');
-                    return 0.2; // 200 метров
-                } else if (numberDiff < 50) {
-                    console.log('Addresses have moderately close house numbers, estimating short distance');
-                    return 1.0; // 1 км
+            const fromHasDistrict = spbDistricts.some(district => fromLower.includes(district));
+            const toHasDistrict = spbDistricts.some(district => toLower.includes(district));
+            
+            if (fromHasDistrict && toHasDistrict) {
+                console.log('Both addresses are in SPb districts, estimating inter-district distance');
+                distance = 20.0; // Между районами СПб
+            }
+            // Если адреса содержат номера домов или улиц, пытаемся определить близость
+            else {
+                const fromHasNumber = /\d+/.test(fromLower);
+                const toHasNumber = /\d+/.test(toLower);
+                
+                if (fromHasNumber && toHasNumber) {
+                    // Извлекаем номера домов
+                    const fromNumber = fromLower.match(/\d+/)?.[0];
+                    const toNumber = toLower.match(/\d+/)?.[0];
+                    
+                    if (fromNumber && toNumber) {
+                        const numberDiff = Math.abs(parseInt(fromNumber) - parseInt(toNumber));
+                        if (numberDiff < 10) {
+                            console.log('Addresses have close house numbers, estimating very short distance');
+                            distance = 0.2; // 200 метров
+                        } else if (numberDiff < 50) {
+                            console.log('Addresses have moderately close house numbers, estimating short distance');
+                            distance = 1.0; // 1 км
+                        } else {
+                            distance = 8.0; // Среднее расстояние в городе
+                        }
+                    } else {
+                        distance = 8.0; // Среднее расстояние в городе
+                    }
+                } else {
+                    // По умолчанию - среднее расстояние в городе
+                    console.log('Using default distance estimation');
+                    distance = 8.0; // Среднее расстояние в городе
                 }
             }
         }
         
-        // По умолчанию - среднее расстояние в городе
-        console.log('Using default distance estimation');
-        return 8.0; // Среднее расстояние в городе
+        // [НОВОЕ] Округляем расстояние до 1 знака после запятой
+        const roundedDistance = Math.round(distance * 10) / 10;
+        console.log(`Distance calculated: ${distance} km, rounded to: ${roundedDistance} km`);
+        
+        return roundedDistance;
     }
 
     async calculateRouteWithCoordinates(coordinates, durationHours, urgentPickup) {
@@ -668,6 +683,9 @@ class CalculatorV2 {
             
             if (route && route.distance > 0) {
                 console.log('Route calculated successfully:', route);
+                // [НОВОЕ] Округляем расстояние до 1 знака после запятой
+                route.distance = Math.round(route.distance * 10) / 10;
+                console.log(`Route distance rounded to: ${route.distance} km`);
                 return route;
             } else {
                 console.error('OSRM вернул пустой маршрут');
@@ -987,16 +1005,15 @@ class CalculatorV2 {
     
     async calculateStep3() {
         try {
-            if (!this.selectedVehicle || !this.calculationData.step1.total) {
-                return;
-            }
-            
+            // [ИСПРАВЛЕНО] Убираем ранний возврат - всегда рассчитываем на основе доступных данных
             // Используем новую систему расчета
-            const routeCost = this.calculationData.step1.total; // Это уже стоимость маршрута
+            const routeCost = this.calculationData.step1.total || 0; // Это уже стоимость маршрута
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
             
             // Расчет стоимости транспорта
-            const vehicleCost = this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * durationHours);
+            const vehicleCost = this.selectedVehicle ?
+                this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * durationHours) :
+                0;
             
             // Расчет стоимости грузчиков
             const loadersCost = (this.calculationData.step2.loaders || 0) * 500 * durationHours;
@@ -1017,7 +1034,7 @@ class CalculatorV2 {
                     total: finalCost
                 },
                 step1_result: this.calculationData.step1,
-                selected_vehicle_id: this.selectedVehicle.id,
+                selected_vehicle_id: this.selectedVehicle?.id || null,
                 loaders: this.calculationData.step2.loaders || 0,
                 duration_hours: durationHours
             };
@@ -1235,24 +1252,17 @@ class CalculatorV2 {
             additionalServicesCostElement.textContent = `${Math.round(breakdown.additional_services_cost)} ₽`;
         }
         
-        // Показываем/скрываем дополнительные услуги и их разделители
+        // [ИСПРАВЛЕНО] Показываем/скрываем дополнительные услуги и их разделители
         if (additionalServicesCostRow && additionalServicesSeparator) {
-            if (breakdown.additional_services_cost > 0) {
-                additionalServicesCostRow.style.display = 'flex';
-                additionalServicesSeparator.style.display = 'block';
-            } else {
-                additionalServicesCostRow.style.display = 'none';
-                additionalServicesSeparator.style.display = 'none';
-            }
+            // Показываем дополнительные услуги всегда, даже если стоимость 0
+            additionalServicesCostRow.style.display = 'flex';
+            additionalServicesSeparator.style.display = 'block';
         }
         
         // Показываем/скрываем разделитель грузчиков
         if (loadersSeparator) {
-            if (breakdown.loaders_cost > 0) {
-                loadersSeparator.style.display = 'block';
-            } else {
-                loadersSeparator.style.display = 'none';
-            }
+            // [ИСПРАВЛЕНО] Показываем разделитель грузчиков всегда, если шаг 3 виден
+            loadersSeparator.style.display = 'block';
         }
         
         // Обновляем итоговую стоимость
@@ -1501,6 +1511,12 @@ class CalculatorV2 {
         // Сохраняем стоимость дополнительных услуг
         this.additionalServicesCost = totalAdditionalCost;
         
+        // [ИСПРАВЛЕНО] Обновляем отображение стоимости дополнительных услуг напрямую
+        const additionalServicesCostElement = document.getElementById('additionalServicesCost');
+        if (additionalServicesCostElement) {
+            additionalServicesCostElement.textContent = `${totalAdditionalCost} ₽`;
+        }
+        
         // Пересчитываем стоимость шага 2
         this.recalculateStep2Cost();
         
@@ -1667,18 +1683,18 @@ class CalculatorV2 {
                 customer_phone: phone,
                 order_notes: orderNotes,
                 payment_method: 'online', // По умолчанию онлайн оплата
-                from_address: this.calculationData.step1.from_address || '',
-                to_address: this.calculationData.step1.to_address || '',
-                pickup_time: this.calculationData.step1.pickup_time || '',
-                duration_hours: this.calculationData.step1.duration_hours || 1,
-                urgent_pickup: this.calculationData.step1.urgent_pickup || false,
-                distance: this.calculationData.step1.distance || null,  // [НОВОЕ] Добавляем расстояние
-                passengers: this.calculationData.step2.passengers || 0,
-                loaders: this.calculationData.step2.loaders || 0,
-                height: this.calculationData.step2.height || null,
-                length: this.calculationData.step2.length || null,
-                body_type: this.calculationData.step2.body_type || 'any',
-                selected_vehicle_id: this.selectedVehicle.id,
+                from_address: document.getElementById('fromAddress')?.value || '',
+                to_address: document.getElementById('toAddress')?.value || '',
+                pickup_time: document.getElementById('pickupTime')?.value || '',
+                duration_hours: parseInt(document.getElementById('durationSelect')?.value) || 1,
+                urgent_pickup: document.getElementById('urgentPickup')?.checked || false,
+                distance: this.calculationData.step1.distance || null,  // This should be up-to-date from calculateStep1
+                passengers: parseInt(document.querySelector('.passenger-btn.bg-primary')?.dataset.value) || 0, // Get from selected button
+                loaders: parseInt(document.querySelector('.loader-btn.bg-primary')?.dataset.value) || 0, // Get from selected button
+                height: document.getElementById('heightSelect')?.value || null,
+                length: document.getElementById('lengthSelect')?.value || null,
+                body_type: document.getElementById('bodyTypeSelect')?.value || 'any',
+                selected_vehicle_id: this.selectedVehicle?.id || null, // Ensure selectedVehicle is not null
                 // [НОВОЕ] Добавляем стоимость дополнительных услуг
                 additional_services_cost: this.additionalServicesCost || 0
             };
