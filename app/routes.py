@@ -48,10 +48,25 @@ def api_step1_v2():
         # Извлечение данных
         from_address = data.get('from_address', '').strip()
         to_address = data.get('to_address', '').strip()
-        distance = data.get('distance')  # Опционально
+        
+        # [ИСПРАВЛЕНО] Преобразование типов для числовых полей
+        distance_raw = data.get('distance')
+        if distance_raw is not None and distance_raw != '':
+            try:
+                distance = float(distance_raw)
+            except (ValueError, TypeError):
+                distance = None
+        else:
+            distance = None
+            
         pickup_time = data.get('pickup_time')
-        duration_hours = data.get('duration_hours', 1)
-        urgent_pickup = data.get('urgent_pickup', False)
+        
+        try:
+            duration_hours = int(data.get('duration_hours', 1))
+        except (ValueError, TypeError):
+            duration_hours = 1
+            
+        urgent_pickup = bool(data.get('urgent_pickup', False))
         
         # Валидация обязательных полей
         if not from_address or not to_address:
@@ -60,7 +75,7 @@ def api_step1_v2():
         if not pickup_time:
             return jsonify({'error': 'Pickup time is required'}), 400
         
-        if not isinstance(duration_hours, int) or duration_hours < 1 or duration_hours > 24:
+        if duration_hours < 1 or duration_hours > 24:
             return jsonify({'error': 'Duration must be between 1 and 24 hours'}), 400
         
         # Создание объектов запроса
@@ -103,17 +118,42 @@ def api_step2_v2():
             return jsonify({'error': 'No data provided'}), 400
         
         # Извлечение данных
-        passengers = data.get('passengers', 0)
-        loaders = data.get('loaders', 0)
-        height = data.get('height')
-        length = data.get('length')
+        try:
+            passengers = int(data.get('passengers', 0))
+        except (ValueError, TypeError):
+            passengers = 0
+            
+        try:
+            loaders = int(data.get('loaders', 0))
+        except (ValueError, TypeError):
+            loaders = 0
+            
+        # Преобразование height и length в float или None
+        height_raw = data.get('height')
+        if height_raw is not None and height_raw != '' and height_raw != 'any':
+            try:
+                height = float(height_raw)
+            except (ValueError, TypeError):
+                height = None
+        else:
+            height = None
+            
+        length_raw = data.get('length')
+        if length_raw is not None and length_raw != '' and length_raw != 'any':
+            try:
+                length = float(length_raw)
+            except (ValueError, TypeError):
+                length = None
+        else:
+            length = None
+            
         body_type_str = data.get('body_type', 'any')
         
         # Валидация
-        if not isinstance(passengers, int) or passengers < 0 or passengers > 20:
+        if passengers < 0 or passengers > 20:
             return jsonify({'error': 'Passengers must be between 0 and 20'}), 400
         
-        if not isinstance(loaders, int) or loaders < 0 or loaders > 10:
+        if loaders < 0 or loaders > 10:
             return jsonify({'error': 'Loaders must be between 0 and 10'}), 400
         
         # Преобразование типа кузова
@@ -162,15 +202,28 @@ def api_step3_v2():
         
         # Извлечение данных
         step1_result = data.get('step1_result')
-        selected_vehicle_id = data.get('selected_vehicle_id')
-        loaders = data.get('loaders', 0)
-        duration_hours = data.get('duration_hours', 1)
+        
+        # [ИСПРАВЛЕНО] Преобразование типов для числовых полей
+        try:
+            selected_vehicle_id = int(data.get('selected_vehicle_id'))
+        except (ValueError, TypeError):
+            selected_vehicle_id = None
+            
+        try:
+            loaders = int(data.get('loaders', 0))
+        except (ValueError, TypeError):
+            loaders = 0
+            
+        try:
+            duration_hours = int(data.get('duration_hours', 1))
+        except (ValueError, TypeError):
+            duration_hours = 1
         
         # Валидация
         if not step1_result or not isinstance(step1_result, dict):
             return jsonify({'error': 'Step1 result is required'}), 400
         
-        if not selected_vehicle_id or not isinstance(selected_vehicle_id, int):
+        if not selected_vehicle_id:
             return jsonify({'error': 'Valid vehicle ID is required'}), 400
         
         # Получение выбранного транспорта
@@ -514,18 +567,66 @@ def api_create_order():
         from_address = data.get('from_address', '').strip()
         to_address = data.get('to_address', '').strip()
         pickup_time = data.get('pickup_time')
-        duration_hours = data.get('duration_hours', 1)
-        urgent_pickup = data.get('urgent_pickup', False)
-        passengers = data.get('passengers', 0)
-        loaders = data.get('loaders', 0)
-        height = data.get('height')
-        length = data.get('length')
+        
+        # [ИСПРАВЛЕНО] Преобразование типов для числовых полей
+        try:
+            duration_hours = int(data.get('duration_hours', 1))
+        except (ValueError, TypeError):
+            duration_hours = 1
+            
+        urgent_pickup = bool(data.get('urgent_pickup', False))
+        
+        try:
+            passengers = int(data.get('passengers', 0))
+        except (ValueError, TypeError):
+            passengers = 0
+            
+        try:
+            loaders = int(data.get('loaders', 0))
+        except (ValueError, TypeError):
+            loaders = 0
+            
+        # Преобразование height и length в float или None
+        height_raw = data.get('height')
+        if height_raw is not None and height_raw != '' and height_raw != 'any':
+            try:
+                height = float(height_raw)
+            except (ValueError, TypeError):
+                height = None
+        else:
+            height = None
+            
+        length_raw = data.get('length')
+        if length_raw is not None and length_raw != '' and length_raw != 'any':
+            try:
+                length = float(length_raw)
+            except (ValueError, TypeError):
+                length = None
+        else:
+            length = None
+            
         body_type_str = data.get('body_type', 'any')
-        selected_vehicle_id = data.get('selected_vehicle_id')
+        
+        try:
+            selected_vehicle_id = int(data.get('selected_vehicle_id'))
+        except (ValueError, TypeError):
+            selected_vehicle_id = None
+            
         # [НОВОЕ] Добавляем извлечение стоимости дополнительных услуг
-        additional_services_cost = data.get('additional_services_cost', 0)
+        try:
+            additional_services_cost = float(data.get('additional_services_cost', 0))
+        except (ValueError, TypeError):
+            additional_services_cost = 0.0
+            
         # [ИСПРАВЛЕНО] Добавляем извлечение расстояния от фронтенда
-        distance = data.get('distance')
+        distance_raw = data.get('distance')
+        if distance_raw is not None and distance_raw != '':
+            try:
+                distance = float(distance_raw)
+            except (ValueError, TypeError):
+                distance = None
+        else:
+            distance = None
 
         # Валидация обязательных полей
         if not customer_name:
@@ -948,16 +1049,65 @@ def api_calculate_price():
         from_address = data.get('from_address', '').strip()
         to_address = data.get('to_address', '').strip()
         pickup_time = data.get('pickup_time')
-        duration_hours = data.get('duration_hours', 1)
-        urgent_pickup = data.get('urgent_pickup', False)
-        distance = data.get('distance')  # Расстояние от фронтенда
-        additional_services_cost = data.get('additional_services_cost', 0)
-        passengers = data.get('passengers', 0)
-        loaders = data.get('loaders', 0)
-        height = data.get('height')
-        length = data.get('length')
+        
+        # [ИСПРАВЛЕНО] Преобразование типов для числовых полей
+        try:
+            duration_hours = int(data.get('duration_hours', 1))
+        except (ValueError, TypeError):
+            duration_hours = 1
+            
+        urgent_pickup = bool(data.get('urgent_pickup', False))
+        
+        # Преобразование distance в float или None
+        distance_raw = data.get('distance')
+        if distance_raw is not None and distance_raw != '':
+            try:
+                distance = float(distance_raw)
+            except (ValueError, TypeError):
+                distance = None
+        else:
+            distance = None
+            
+        try:
+            additional_services_cost = float(data.get('additional_services_cost', 0))
+        except (ValueError, TypeError):
+            additional_services_cost = 0.0
+            
+        try:
+            passengers = int(data.get('passengers', 0))
+        except (ValueError, TypeError):
+            passengers = 0
+            
+        try:
+            loaders = int(data.get('loaders', 0))
+        except (ValueError, TypeError):
+            loaders = 0
+            
+        # Преобразование height и length в float или None
+        height_raw = data.get('height')
+        if height_raw is not None and height_raw != '' and height_raw != 'any':
+            try:
+                height = float(height_raw)
+            except (ValueError, TypeError):
+                height = None
+        else:
+            height = None
+            
+        length_raw = data.get('length')
+        if length_raw is not None and length_raw != '' and length_raw != 'any':
+            try:
+                length = float(length_raw)
+            except (ValueError, TypeError):
+                length = None
+        else:
+            length = None
+            
         body_type = data.get('body_type', 'any')
-        selected_vehicle_id = data.get('selected_vehicle_id')
+        
+        try:
+            selected_vehicle_id = int(data.get('selected_vehicle_id'))
+        except (ValueError, TypeError):
+            selected_vehicle_id = None
         
         # Валидация обязательных полей
         if not from_address or not to_address:
