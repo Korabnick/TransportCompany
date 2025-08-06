@@ -6,6 +6,7 @@ from app.models import (
     VehicleDatabase, CalculationResult
 )
 from app.order_models import order_storage, OrderStatus, PaymentMethod
+from app.media_models import media_database, MediaType, MediaCategory
 # Импорт функции для отправки в телеграм (опционально)
 try:
     from telegram_bot_standalone import send_order_to_telegram
@@ -1166,4 +1167,123 @@ def api_calculate_price():
         
     except Exception as e:
         app.logger.error(f"Price calculation error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+# ============================================================================
+# MEDIA API ENDPOINTS
+# ============================================================================
+
+@app.route('/api/v2/media', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_get_media():
+    """API для получения всех медиа-элементов"""
+    try:
+        # Параметры фильтрации
+        media_type = request.args.get('type')
+        category = request.args.get('category')
+        search = request.args.get('search')
+        
+        # Получаем медиа-элементы
+        if search:
+            media_items = media_database.search_media(search)
+        elif media_type:
+            try:
+                media_type_enum = MediaType(media_type)
+                media_items = media_database.get_media_by_type(media_type_enum)
+            except ValueError:
+                return jsonify({'error': 'Invalid media type'}), 400
+        elif category:
+            try:
+                category_enum = MediaCategory(category)
+                media_items = media_database.get_media_by_category(category_enum)
+            except ValueError:
+                return jsonify({'error': 'Invalid category'}), 400
+        else:
+            media_items = media_database.get_all_media()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'media': [item.to_dict() for item in media_items],
+                'count': len(media_items)
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get media error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/media/images', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_get_images():
+    """API для получения всех изображений"""
+    try:
+        images = media_database.get_images()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'images': [item.to_dict() for item in images],
+                'count': len(images)
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get images error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/media/videos', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_get_videos():
+    """API для получения всех видео"""
+    try:
+        videos = media_database.get_videos()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'videos': [item.to_dict() for item in videos],
+                'count': len(videos)
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get videos error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/media/<media_id>', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_get_media_item(media_id):
+    """API для получения конкретного медиа-элемента"""
+    try:
+        media_item = media_database.get_media_by_id(media_id)
+        
+        if not media_item:
+            return jsonify({'error': 'Media item not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': media_item.to_dict()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get media item error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/media/categories', methods=['GET'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_get_categories():
+    """API для получения всех категорий медиа"""
+    try:
+        categories = [category.value for category in MediaCategory]
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'categories': categories
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get categories error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
