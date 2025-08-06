@@ -1001,8 +1001,8 @@ class CalculatorV2 {
             // Расчет стоимости грузчиков
             const loadersCost = (this.calculationData.step2.loaders || 0) * 500 * durationHours;
             
-            // Стоимость дополнительных услуг
-            const additionalServicesCost = this.calculationData.additionalServicesCost || 0;
+            // [ИСПРАВЛЕНО] Стоимость дополнительных услуг - используем this.additionalServicesCost
+            const additionalServicesCost = this.additionalServicesCost || 0;
             
             // Итоговая стоимость
             const finalCost = routeCost + vehicleCost + loadersCost + additionalServicesCost;
@@ -1207,6 +1207,10 @@ class CalculatorV2 {
         
         // Инициализируем карусель
         this.initVehicleCarousel();
+        // [НОВОЕ] Автоматически выбираем первый транспорт, если есть
+        if (vehicles.length > 0) {
+            this.selectVehicle(vehicles[0].id);
+        }
     }
     
     updateStep3Display(data) {
@@ -1281,6 +1285,15 @@ class CalculatorV2 {
                     dot.style.borderRadius = '50%';
                 }
             });
+            
+            // [НОВОЕ] Автоматически выбираем транспорт, который сейчас отображается
+            const vehicleCards = document.querySelectorAll('.vehicle-card');
+            if (vehicleCards[currentIndex]) {
+                const vehicleId = parseInt(vehicleCards[currentIndex].getAttribute('data-vehicle-id'));
+                if (vehicleId) {
+                    this.selectVehicle(vehicleId);
+                }
+            }
         };
         
         // Обработчики для точек
@@ -1659,12 +1672,15 @@ class CalculatorV2 {
                 pickup_time: this.calculationData.step1.pickup_time || '',
                 duration_hours: this.calculationData.step1.duration_hours || 1,
                 urgent_pickup: this.calculationData.step1.urgent_pickup || false,
+                distance: this.calculationData.step1.distance || null,  // [НОВОЕ] Добавляем расстояние
                 passengers: this.calculationData.step2.passengers || 0,
                 loaders: this.calculationData.step2.loaders || 0,
                 height: this.calculationData.step2.height || null,
                 length: this.calculationData.step2.length || null,
                 body_type: this.calculationData.step2.body_type || 'any',
-                selected_vehicle_id: this.selectedVehicle.id
+                selected_vehicle_id: this.selectedVehicle.id,
+                // [НОВОЕ] Добавляем стоимость дополнительных услуг
+                additional_services_cost: this.additionalServicesCost || 0
             };
             
             // Отправляем заявку на сервер

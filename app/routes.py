@@ -522,6 +522,10 @@ def api_create_order():
         length = data.get('length')
         body_type_str = data.get('body_type', 'any')
         selected_vehicle_id = data.get('selected_vehicle_id')
+        # [НОВОЕ] Добавляем извлечение стоимости дополнительных услуг
+        additional_services_cost = data.get('additional_services_cost', 0)
+        # [ИСПРАВЛЕНО] Добавляем извлечение расстояния от фронтенда
+        distance = data.get('distance')
 
         # Валидация обязательных полей
         if not customer_name:
@@ -551,7 +555,7 @@ def api_create_order():
         route_request = RouteRequest(
             from_address=from_address,
             to_address=to_address,
-            distance=None
+            distance=distance  # [ИСПРАВЛЕНО] Используем расстояние от фронтенда
         )
         time_request = TimeRequest(
             pickup_time=pickup_time,
@@ -568,12 +572,34 @@ def api_create_order():
 
         # Серверный перерасчёт заказа
         try:
-            calculation_result = CalculatorServiceV2.calculate_complete(
-                route_request,
-                time_request,
-                vehicle_request,
-                selected_vehicle_id
+            # [НОВОЕ] Сначала получаем step1 и step2 результаты
+            step1_result = CalculatorServiceV2.calculate_step1(route_request, time_request)
+            step2_result = CalculatorServiceV2.calculate_step2(vehicle_request)
+            
+            # Получаем выбранный транспорт
+            vehicle_db = VehicleDatabase()
+            selected_vehicle = vehicle_db.get_vehicle_by_id(selected_vehicle_id)
+            
+            if not selected_vehicle:
+                raise ValueError(f"Vehicle with ID {selected_vehicle_id} not found")
+            
+            # [НОВОЕ] Выполняем step3 с учётом дополнительных услуг
+            step3_result = CalculatorServiceV2.calculate_step3(
+                step1_result,
+                selected_vehicle,
+                loaders,
+                duration_hours,
+                additional_services_cost  # Передаём стоимость дополнительных услуг
             )
+            
+            # Создаём результат вручную
+            calculation_result = CalculationResult(
+                step1_price=step1_result['total'],
+                step2_vehicles=[selected_vehicle],
+                step3_total=step3_result['total'],
+                breakdown=step3_result
+            )
+            
         except Exception as e:
             app.logger.error(f"Order calculation error: {str(e)}")
             return jsonify({'error': 'Order calculation failed', 'details': str(e)}), 400
@@ -591,7 +617,7 @@ def api_create_order():
             passengers=passengers,
             loaders=loaders,
             selected_vehicle=calculation_result.step2_vehicles[0].to_dict() if calculation_result.step2_vehicles else {},
-            total_cost=calculation_result.step3_total,
+            total_cost=calculation_result.step3_total,  # Используем валидированную цену от backend
             order_notes=order_notes,
             payment_method=payment_method
         )
@@ -599,9 +625,10 @@ def api_create_order():
         # Сохраняем заявку
         order_id = order_storage.add_order(order)
 
-        # Отправляем уведомление в телеграм
+        # [ИСПРАВЛЕНО] Отправляем уведомление в телеграм с валидированной ценой
         order_data = order.to_dict()
         app.logger.info(f"Attempting to send order {order_id} to Telegram. Order data: {order_data}")
+        app.logger.info(f"✅ Using validated total_cost: {calculation_result.step3_total} for Telegram")
         
         telegram_sent = send_telegram_message_direct(order_data)
 
@@ -619,7 +646,9 @@ def api_create_order():
             'success': True,
             'order_id': order_id,
             'telegram_sent': telegram_sent,
-            'message': 'Order created successfully'
+            'message': 'Order created successfully',
+            # [НОВОЕ] Возвращаем валидированную цену frontend
+            'validated_total_cost': calculation_result.step3_total
         })
 
     except Exception as e:
