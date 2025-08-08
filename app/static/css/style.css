@@ -517,6 +517,19 @@ body, button, input, select, textarea {
   box-shadow: 0 4px 12px rgba(212, 106, 0, 0.2);
 }
 
+/* Стили для изображений транспорта в карточках */
+.vehicle-card img {
+  transition: all 0.3s ease;
+}
+
+.vehicle-card:hover img {
+  transform: scale(1.05);
+}
+
+.vehicle-card.selected img {
+  border: 1px solid var(--color-primary);
+}
+
 .vehicle-prev,
 .vehicle-next {
   z-index: 10;
@@ -1341,3 +1354,4 @@ input[type="datetime-local"]:invalid:focus {
 #callbackModal .close-btn:hover {
   color: var(--color-text-primary);
 }
+

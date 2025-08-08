@@ -435,6 +435,8 @@ class CalculatorV2 {
         this.bindAdditionalServicesEvents();
     }
     
+
+    
     bindStep3Events() {
         // Обработка выбора транспорта
         document.addEventListener('click', (e) => {
@@ -702,86 +704,86 @@ class CalculatorV2 {
         return roundedDistance;
     }
 
-    // // Маска телефона в стиле Gazelkin - улучшенная реализация
     // Маска телефона из модального окна перезвона
-    // Новая маска телефона
     addInputMaskPhone() {
         document.addEventListener('input', (e) => {
-            if (e.target.classList.contains('js-input-phone')) {
-                this.maskPhone.call(e.target, e);
+            // Safely check if classList exists before using it
+            if (e.target && e.target.classList && e.target.classList.contains('js-input-phone')) {
+                this.formatPhoneNumber(e.target);
             }
         });
         document.addEventListener('focus', (e) => {
-            if (e.target.classList.contains('js-input-phone')) {
-                this.maskPhone.call(e.target, e);
-            }
-        });
-        document.addEventListener('blur', (e) => {
-            if (e.target.classList.contains('js-input-phone')) {
-                this.maskPhone.call(e.target, e);
-            }
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.target.classList.contains('js-input-phone')) {
-                this.maskPhone.call(e.target, e);
+            // Safely check if classList exists before using it
+            if (e.target && e.target.classList && e.target.classList.contains('js-input-phone')) {
+                // При фокусе сразу показываем +7
+                if (!e.target.value) {
+                    e.target.value = '+7';
+                    e.target.setSelectionRange(2, 2);
+                }
+                this.formatPhoneNumber(e.target); // Apply mask on focus
             }
         });
     }
 
-    maskPhone(event) {
-        event.keyCode && (this.keyCode = event.keyCode);
-        var pos = this.selectionStart;
-        if (pos < 3) event.preventDefault();
+    formatPhoneNumber(input) {
+        // Сохраняем позицию курсора
+        const cursorPos = input.selectionStart;
+        const oldValue = input.value;
         
-        // Сохраняем позицию курсора и количество цифр до курсора
-        const cursorPos = this.selectionStart;
-        const oldValue = this.value;
+        // Подсчитываем количество цифр до курсора
         const digitsBeforeCursor = oldValue.substring(0, cursorPos).replace(/\D/g, '').length;
         
-        const matrix = '+7 (___) ___-__-__';
-        let i = 0;
-        const def = matrix.replace(/\D/g, '');
-        const val = this.value.replace(/\D/g, '');
-        let newValue = matrix.replace(/[_\d]/g, function (a) {
-            return i < val.length ? val.charAt(i++) || def.charAt(i) : a;
-        });
-        i = newValue.indexOf('_');
-        if (i !== -1) {
-            i < 5 && (i = 3);
-            newValue = newValue.slice(0, i);
+        let value = input.value.replace(/\D/g, '');
+        
+        if (value.length === 0) {
+            input.value = '';
+            return;
         }
-        var reg = matrix
-            .substr(0, this.value.length)
-            .replace(/_+/g, function (a) {
-                return '\\d{1,' + a.length + '}';
-            })
-            .replace(/[+()]/g, '\\$&');
-        reg = new RegExp('^' + reg + '$');
-        if (
-            !reg.test(this.value) ||
-            this.value.length < 5 ||
-            (this.keyCode > 47 && this.keyCode < 58)
-        ) {
-            this.value = newValue;
+        
+        // Убираем автоматическую замену 8 на 7 (as per user's earlier request)
+        // if (value.length === 1 && value[0] === '8') {
+        //     value = '7' + value.substring(1);
+        // }
+        
+        let formattedValue = '';
+        
+        if (value.length >= 1) {
+            formattedValue = '+7';
+        }
+        
+        if (value.length >= 2) {
+            formattedValue += ' (' + value.substring(1, 4);
+        }
+        
+        if (value.length >= 5) {
+            formattedValue += ') ' + value.substring(4, 7);
+        }
+        
+        if (value.length >= 8) {
+            formattedValue += '-' + value.substring(7, 9);
+        }
+        
+        if (value.length >= 10) {
+            formattedValue += '-' + value.substring(9, 11);
+        }
+        
+        input.value = formattedValue;
+        
+        // Восстанавливаем позицию курсора
+        if (cursorPos > 0) {
+            let newCursorPos = 2; // Начинаем с позиции после +7
+            let digitCount = 0;
             
-            // Восстанавливаем позицию курсора
-            if (event.type === 'input') {
-                // Находим позицию в новом значении, где должно быть столько же цифр до курсора
-                let newCursorPos = 3; // Начинаем с позиции после +7
-                let digitCount = 0;
-                
-                for (let i = 3; i < newValue.length && digitCount < digitsBeforeCursor; i++) {
-                    if (/\d/.test(newValue[i])) {
-                        digitCount++;
-                        newCursorPos = i + 1;
-                    }
+            for (let i = 2; i < formattedValue.length && digitCount < digitsBeforeCursor; i++) {
+                if (/\d/.test(formattedValue[i])) {
+                    digitCount++;
+                    newCursorPos = i + 1;
                 }
-                
-                // Устанавливаем курсор
-                this.setSelectionRange(newCursorPos, newCursorPos);
             }
+            
+            // Устанавливаем курсор
+            input.setSelectionRange(newCursorPos, newCursorPos);
         }
-        if (event.type === 'focusout' && this.value.length < 18) this.value = '';
     }
 
     async calculateRouteWithCoordinates(coordinates, durationHours, urgentPickup) {
@@ -1313,10 +1315,11 @@ class CalculatorV2 {
                     <div class="flex items-start space-x-4">
                         <!-- Миниатюра транспорта -->
                         <div class="flex-shrink-0">
-                            <div class="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <i class="ri-truck-line text-2xl text-gray-400"></i>
+                            <div class="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                                <img src="${vehicle.image_url}" alt="${vehicle.name}" class="w-full h-full object-cover rounded-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <i class="ri-truck-line text-2xl text-gray-400" style="display: none;"></i>
+                            </div>
                         </div>
-                    </div>
                         
                         <!-- Информация о транспорте -->
                         <div class="flex-1 min-w-0">
@@ -1362,7 +1365,8 @@ class CalculatorV2 {
         
         // Инициализируем карусель
         this.initVehicleCarousel();
-        // [НОВОЕ] Автоматически выбираем первый транспорт, если есть
+        
+        // Автоматически выбираем первый транспорт, если есть
         if (vehicles.length > 0) {
             this.selectVehicle(vehicles[0].id);
         }

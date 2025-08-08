@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function() {
   const openBtn = document.querySelector('header .ri-phone-line')?.closest('button');
   const modal = document.getElementById('callbackModal');
-  const closeBtn = document.getElementById('callbackClose');
+  const closeBtn = document.getElementById('closeCallbackModal');
   const submitBtn = document.getElementById('callbackSubmit');
   const nameInput = document.getElementById('callbackName');
   const callbackPhone = document.getElementById('callbackPhone');
@@ -308,26 +308,18 @@ document.addEventListener('DOMContentLoaded', function() {
   if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
-  // Маска телефона (модалка)
-  attachPhoneMask(callbackPhone);
+  // Функция валидации телефона
+  function isValidPhone(phone) {
+    const phoneDigits = phone.replace(/\D/g, '');
+    return phoneDigits.length === 11;
+  }
 
   // Сабмит модалки (валидация телефона)
   if (submitBtn) submitBtn.addEventListener('click', () => {
-    const ok = isValidPhoneStrict(callbackPhone?.value || '');
+    const ok = isValidPhone(callbackPhone?.value || '');
     callbackPhone?.classList.toggle('phone-invalid', !ok);
     if (phoneError) phoneError.classList.toggle('hidden', ok);
     if (!ok) return;
     closeModal();
-  });
-
-  // Маска и валидация для шага 3 калькулятора
-  const calcPhone = document.getElementById('customerPhone');
-  attachPhoneMask(calcPhone);
-
-  // На случай динамических перерисовок — вешаем по фокусу
-  document.addEventListener('focusin', (e) => {
-    if (e.target instanceof HTMLInputElement && e.target.type === 'tel') {
-      attachPhoneMask(e.target);
-    }
   });
 });
