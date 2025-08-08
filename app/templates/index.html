@@ -86,6 +86,7 @@
               <span>Быстрый заказ</span>
             </button>
             <button
+              id="callbackRequestBtn"
               class="bg-white border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
             >
               <i class="ri-phone-line mr-1"></i>
@@ -1013,26 +1014,40 @@
     </div>
   </div>
 
-  <!-- Модалка обратного звонка -->
-  <div id="callbackModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="text-lg font-bold">Перезвоним за 8 секунд</h3>
-        <button id="callbackClose" class="close-btn" aria-label="Закрыть">
+  <!-- Модальное окно для заявки на перезвон -->
+  <div id="callbackModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white">Заявка на перезвон</h3>
+        <button id="closeCallbackModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
           <i class="ri-close-line text-xl"></i>
         </button>
       </div>
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">Имя</label>
-          <input id="callbackName" type="text" placeholder="Ваше имя" class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary" />
-        </div>
-        <div>
-          <label class="block text-sm text-gray-600 mb-1">Телефон</label>
-          <input id="callbackPhone" type="tel" placeholder="+7 (___) ___-__-__" class="w-full px-4 py-2 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-primary" />
-          <div id="callbackPhoneError" class="hidden text-xs text-red-500 mt-1">Введите телефон в формате +7 (XXX) XXX-XX-XX</div>
-        </div>
-        <button id="callbackSubmit" class="w-full bg-primary text-white py-2 rounded-button mt-2">Жду звонка</button>
+      <div class="mb-4">
+        <label class="block text-sm text-gray-600 dark:text-gray-300 mb-2">Ваше имя:</label>
+        <input 
+          id="callbackName" 
+          type="text" 
+          placeholder="Введите ваше имя"
+          class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm text-gray-600 dark:text-gray-300 mb-2">Номер телефона:</label>
+        <input 
+          id="callbackPhone" 
+          type="tel" 
+          placeholder="+7 (___) ___-__-__"
+          class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+      <div class="flex justify-end space-x-3">
+        <button id="cancelCallback" class="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors">
+          Отмена
+        </button>
+        <button id="submitCallback" class="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors">
+          Отправить заявку
+        </button>
       </div>
     </div>
   </div>
@@ -1041,5 +1056,6 @@
   <script src="{{ url_for('static', filename='js/calculator_v2.js') }}"></script>
   <script src="{{ url_for('static', filename='js/map-integration.js') }}"></script>
   <script src="{{ url_for('static', filename='js/address-autocomplete.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/callback-request.js') }}"></script>
 </body>
 </html>

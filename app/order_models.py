@@ -20,7 +20,6 @@ class PaymentMethod(Enum):
 @dataclass
 class Order:
     """Модель заявки на грузоперевозку"""
-    id: str
     customer_name: str
     customer_phone: str
     from_address: str
@@ -31,9 +30,11 @@ class Order:
     loaders: int
     selected_vehicle: Dict[str, Any]
     total_cost: float
+    id: Optional[str] = None
     order_notes: str = ""
     payment_method: PaymentMethod = PaymentMethod.ONLINE
     status: OrderStatus = OrderStatus.NEW
+    order_type: str = "regular"  # regular, urgent, callback
     created_at: datetime = None
     updated_at: datetime = None
     telegram_sent: bool = False

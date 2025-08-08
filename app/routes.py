@@ -5,11 +5,11 @@ from app.models import (
     RouteRequest, TimeRequest, VehicleRequest, BodyType, 
     VehicleDatabase, CalculationResult
 )
-from app.order_models import order_storage, OrderStatus, PaymentMethod
+from app.order_models import order_storage, OrderStatus, PaymentMethod, Order
 from app.media_models import media_database, MediaType, MediaCategory
 # Импорт функции для отправки в телеграм (опционально)
 try:
-    from telegram_bot_standalone import send_order_to_telegram
+    from telegram_service.telegram_bot_standalone import send_order_to_telegram
 except ImportError:
     # Если модуль недоступен, создаем заглушку
     def send_order_to_telegram(order_data):
@@ -548,6 +548,71 @@ def api_proxy_nominatim():
         app.logger.error(f"Nominatim proxy error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/v2/callback-request', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=60)
+def api_create_callback_request():
+    """API для создания заявки на перезвон"""
+    try:
+        data = request.get_json()
+        app.logger.info(f"CALLBACK REQUEST DATA: {data}")
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Извлечение данных клиента
+        customer_name = data.get('customer_name', '').strip()
+        customer_phone = data.get('customer_phone', '').strip()
+
+        # Валидация обязательных полей
+        if not customer_name:
+            return jsonify({'error': 'Customer name is required'}), 400
+        if not customer_phone:
+            return jsonify({'error': 'Customer phone is required'}), 400
+
+        # Создаем заявку на перезвон
+        callback_order = Order(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            from_address='Заявка на перезвон',
+            to_address='Заявка на перезвон',
+            pickup_time=datetime.now().isoformat(),
+            duration_hours=0,
+            passengers=0,
+            loaders=0,
+            selected_vehicle={},
+            total_cost=0,
+            order_notes='Заявка на перезвон в течение 8 секунд',
+            payment_method=PaymentMethod.CASH,
+            status=OrderStatus.NEW
+        )
+
+        # Добавляем тип заявки
+        callback_order.order_type = 'callback'
+
+        # Сохраняем заявку
+        order_id = order_storage.add_order(callback_order)
+        callback_order.id = order_id
+
+        # Отправляем в телеграм
+        order_data = callback_order.to_dict()
+        order_data['order_type'] = 'callback'
+        
+        telegram_sent = send_telegram_message_direct(order_data)
+        if telegram_sent:
+            callback_order.mark_telegram_sent()
+            order_storage.update_order(callback_order)
+
+        app.logger.info(f"Callback request created: {order_id}")
+        
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'message': 'Заявка на перезвон успешно создана'
+        }), 201
+
+    except Exception as e:
+        app.logger.error(f"Error creating callback request: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/api/v2/orders', methods=['POST'])
 @rate_limit(max_requests=20, window_seconds=60)
 def api_create_order():
@@ -706,6 +771,9 @@ def api_create_order():
             app.logger.error(f"Order calculation error: {str(e)}")
             return jsonify({'error': 'Order calculation failed', 'details': str(e)}), 400
 
+        # Определяем тип заявки
+        order_type = "urgent" if urgent_pickup else "regular"
+        
         # Формируем Order только на основе серверного расчёта
         from app.order_models import Order
         order = Order(
@@ -721,7 +789,8 @@ def api_create_order():
             selected_vehicle=calculation_result.step2_vehicles[0].to_dict() if calculation_result.step2_vehicles else {},
             total_cost=calculation_result.step3_total,  # Используем валидированную цену от backend
             order_notes=order_notes,
-            payment_method=payment_method
+            payment_method=payment_method,
+            order_type=order_type
         )
 
         # Сохраняем заявку
@@ -729,6 +798,7 @@ def api_create_order():
 
         # [ИСПРАВЛЕНО] Отправляем уведомление в телеграм с валидированной ценой
         order_data = order.to_dict()
+        order_data['order_type'] = order_type  # Добавляем тип заявки
         app.logger.info(f"Attempting to send order {order_id} to Telegram. Order data: {order_data}")
         app.logger.info(f"✅ Using validated total_cost: {calculation_result.step3_total} for Telegram")
         
@@ -927,12 +997,21 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
     """Прямая отправка сообщения в Telegram через HTTP API"""
     try:
         bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        chat_id = os.getenv('TELEGRAM_CHAT_ID')
         
-        app.logger.info(f"Telegram sending - Bot token: {'SET' if bot_token else 'NOT SET'}, Chat ID: {'SET' if chat_id else 'NOT SET'}")
+        # Определяем chat_id в зависимости от типа заявки
+        order_type = order_data.get('order_type', 'regular')
+        
+        if order_type == 'urgent':
+            chat_id = os.getenv('TELEGRAM_URGENT_CHAT_ID')
+        elif order_type == 'callback':
+            chat_id = os.getenv('TELEGRAM_CALLBACK_CHAT_ID')
+        else:
+            chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        
+        app.logger.info(f"Telegram sending - Bot token: {'SET' if bot_token else 'NOT SET'}, Chat ID: {'SET' if chat_id else 'NOT SET'}, Order type: {order_type}")
         
         if not bot_token or not chat_id:
-            logger.error("TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены")
+            logger.error(f"TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены для типа заявки: {order_type}")
             return False
         
         # Формируем сообщение
@@ -985,6 +1064,7 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
         total_cost = order_data.get('total_cost', 0)
         order_notes = order_data.get('order_notes', '')
         payment_method = order_data.get('payment_method', 'Не указано')
+        order_type = order_data.get('order_type', 'regular')
         
         # Форматируем время
         if pickup_time and pickup_time != 'Не указано':
@@ -1005,8 +1085,44 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
         else:
             pickup_str = 'Не указано'
         
-        # Формируем сообщение
-        message = f"""
+        # Формируем сообщение в зависимости от типа заявки
+        if order_type == 'callback':
+            message = f"""
+📞 <b>ЗАЯВКА НА ПЕРЕЗВОН #{order_id}</b>
+
+👤 <b>Клиент:</b> {customer_name}
+📞 <b>Телефон:</b> {customer_phone}
+
+📝 <b>Примечания:</b> {order_notes if order_notes else 'Заявка на перезвон в течение 8 секунд'}
+
+🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
+            """
+        elif order_type == 'urgent':
+            message = f"""
+🚨 <b>СРОЧНАЯ ЗАЯВКА #{order_id}</b>
+
+👤 <b>Клиент:</b> {customer_name}
+📞 <b>Телефон:</b> {customer_phone}
+
+📍 <b>Откуда:</b> {from_address}
+🎯 <b>Куда:</b> {to_address}
+
+⏰ <b>Время подачи:</b> {pickup_str}
+⏱ <b>Длительность:</b> {duration_hours} ч.
+
+🚗 <b>Транспорт:</b> {selected_vehicle.get('name', 'Не выбран')}
+👥 <b>Пассажиры:</b> {passengers}
+🏋️ <b>Грузчики:</b> {loaders}
+
+💰 <b>Стоимость:</b> {total_cost:,} ₽
+💳 <b>Оплата:</b> {payment_method}
+
+📝 <b>Примечания:</b> {order_notes if order_notes else 'Нет'}
+
+🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
+            """
+        else:
+            message = f"""
 🚛 <b>НОВАЯ ЗАЯВКА #{order_id}</b>
 
 👤 <b>Клиент:</b> {customer_name}
@@ -1028,7 +1144,7 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
 📝 <b>Примечания:</b> {order_notes if order_notes else 'Нет'}
 
 🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
-        """
+            """
         
         return message.strip()
         
