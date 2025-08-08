@@ -455,6 +455,9 @@ class CalculatorV2 {
                 this.submitOrder();
             });
         }
+
+        // Инициализация маски телефона
+        this.addInputMaskPhone();
         
         // Обработка событий поля "Примечания к заказу"
         this.bindOrderNotesEvents();
@@ -697,6 +700,88 @@ class CalculatorV2 {
         console.log(`Distance calculated: ${distance} km, rounded to: ${roundedDistance} km`);
         
         return roundedDistance;
+    }
+
+    // // Маска телефона в стиле Gazelkin - улучшенная реализация
+    // Маска телефона из модального окна перезвона
+    // Новая маска телефона
+    addInputMaskPhone() {
+        document.addEventListener('input', (e) => {
+            if (e.target.classList.contains('js-input-phone')) {
+                this.maskPhone.call(e.target, e);
+            }
+        });
+        document.addEventListener('focus', (e) => {
+            if (e.target.classList.contains('js-input-phone')) {
+                this.maskPhone.call(e.target, e);
+            }
+        });
+        document.addEventListener('blur', (e) => {
+            if (e.target.classList.contains('js-input-phone')) {
+                this.maskPhone.call(e.target, e);
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.target.classList.contains('js-input-phone')) {
+                this.maskPhone.call(e.target, e);
+            }
+        });
+    }
+
+    maskPhone(event) {
+        event.keyCode && (this.keyCode = event.keyCode);
+        var pos = this.selectionStart;
+        if (pos < 3) event.preventDefault();
+        
+        // Сохраняем позицию курсора и количество цифр до курсора
+        const cursorPos = this.selectionStart;
+        const oldValue = this.value;
+        const digitsBeforeCursor = oldValue.substring(0, cursorPos).replace(/\D/g, '').length;
+        
+        const matrix = '+7 (___) ___-__-__';
+        let i = 0;
+        const def = matrix.replace(/\D/g, '');
+        const val = this.value.replace(/\D/g, '');
+        let newValue = matrix.replace(/[_\d]/g, function (a) {
+            return i < val.length ? val.charAt(i++) || def.charAt(i) : a;
+        });
+        i = newValue.indexOf('_');
+        if (i !== -1) {
+            i < 5 && (i = 3);
+            newValue = newValue.slice(0, i);
+        }
+        var reg = matrix
+            .substr(0, this.value.length)
+            .replace(/_+/g, function (a) {
+                return '\\d{1,' + a.length + '}';
+            })
+            .replace(/[+()]/g, '\\$&');
+        reg = new RegExp('^' + reg + '$');
+        if (
+            !reg.test(this.value) ||
+            this.value.length < 5 ||
+            (this.keyCode > 47 && this.keyCode < 58)
+        ) {
+            this.value = newValue;
+            
+            // Восстанавливаем позицию курсора
+            if (event.type === 'input') {
+                // Находим позицию в новом значении, где должно быть столько же цифр до курсора
+                let newCursorPos = 3; // Начинаем с позиции после +7
+                let digitCount = 0;
+                
+                for (let i = 3; i < newValue.length && digitCount < digitsBeforeCursor; i++) {
+                    if (/\d/.test(newValue[i])) {
+                        digitCount++;
+                        newCursorPos = i + 1;
+                    }
+                }
+                
+                // Устанавливаем курсор
+                this.setSelectionRange(newCursorPos, newCursorPos);
+            }
+        }
+        if (event.type === 'focusout' && this.value.length < 18) this.value = '';
     }
 
     async calculateRouteWithCoordinates(coordinates, durationHours, urgentPickup) {
