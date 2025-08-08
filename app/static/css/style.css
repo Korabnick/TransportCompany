@@ -1288,3 +1288,56 @@ input[type="datetime-local"]:invalid:focus {
     border-radius: 8px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
+
+/* Подсветка калькулятора и двойной "прыжок" */
+#calculatorContainer.highlight-calc {
+  animation: calcHighlightDouble 900ms ease;
+  box-shadow: 0 0 0 3px rgba(212, 106, 0, 0.3);
+}
+@keyframes calcHighlightDouble {
+  0% { transform: translateY(0) scale(1); }
+  20% { transform: translateY(-2px) scale(1.01); }
+  40% { transform: translateY(0) scale(1); }
+  60% { transform: translateY(-2px) scale(1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* Простейная подсветка невалидного телефона */
+.phone-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+/* Модалка обратного звонка */
+#callbackModal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#callbackModal.show { display: flex; }
+#callbackModal .modal-card {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+#callbackModal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+#callbackModal .close-btn {
+  color: var(--color-text-tertiary);
+}
+#callbackModal .close-btn:hover {
+  color: var(--color-text-primary);
+}
