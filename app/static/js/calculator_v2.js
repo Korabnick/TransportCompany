@@ -44,6 +44,7 @@ class CalculatorV2 {
         this.checkRateLimitStatus();
         this.loadVehicles();
         this.generatePassengerAndLoaderButtons();
+        this.generateDurationOptions();
         
         // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
         const additionalServicesContainer = document.getElementById('additionalServicesContainer');
@@ -55,6 +56,7 @@ class CalculatorV2 {
         // Добавляем обработчик события загрузки конфигурации
         document.addEventListener('configLoaded', () => {
             this.generatePassengerAndLoaderButtons();
+            this.generateDurationOptions();
             
             // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
             const additionalServicesContainer = document.getElementById('additionalServicesContainer');
@@ -92,6 +94,83 @@ class CalculatorV2 {
             
         } catch (error) {
             console.error('Error generating passenger and loader buttons:', error);
+        }
+    }
+    
+    /**
+     * Получает минимальную и максимальную длительность из конфигурации
+     */
+    getDurationLimits() {
+        if (!window.configManager || !window.configManager.isReady()) {
+            console.log('Config not ready, using fallback duration limits: min=1, max=24');
+            return { min: 1, max: 24 }; // Fallback значения
+        }
+        
+        try {
+            const limits = window.configManager.getCalculatorLimits();
+            const result = {
+                min: limits.min_duration_hours || 1,
+                max: limits.max_duration_hours || 24
+            };
+            console.log('Duration limits from config:', result);
+            return result;
+        } catch (error) {
+            console.error('Error getting duration limits:', error);
+            console.log('Using fallback duration limits: min=1, max=24');
+            return { min: 1, max: 24 }; // Fallback значения
+        }
+    }
+    
+    /**
+     * Динамически генерирует опции длительности на основе лимитов из конфигурации
+     */
+    generateDurationOptions() {
+        if (!window.configManager || !window.configManager.isReady()) {
+            console.log('Config not loaded yet, skipping duration options generation');
+            return;
+        }
+        
+        try {
+            const limits = this.getDurationLimits();
+            const minDuration = limits.min;
+            const maxDuration = limits.max;
+            
+            console.log('Generating duration options with limits:', { minDuration, maxDuration });
+            
+            const durationSelect = document.getElementById('durationSelect');
+            if (!durationSelect) {
+                console.error('Duration select element not found');
+                return;
+            }
+            
+            // Очищаем существующие опции
+            durationSelect.innerHTML = '';
+            
+            // Генерируем опции от minDuration до maxDuration
+            for (let i = minDuration; i <= maxDuration; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                
+                // Форматируем текст опции
+                if (i === 1) {
+                    option.textContent = '1 час';
+                } else if (i >= 2 && i <= 4) {
+                    option.textContent = `${i} часа`;
+                } else {
+                    option.textContent = `${i} часов`;
+                }
+                
+                durationSelect.appendChild(option);
+            }
+            
+            // Устанавливаем значение по умолчанию (минимальная длительность)
+            durationSelect.value = minDuration;
+            
+            console.log(`Generated ${maxDuration - minDuration + 1} duration options from ${minDuration} to ${maxDuration} hours`);
+            console.log('Default duration value set to:', minDuration);
+            
+        } catch (error) {
+            console.error('Error generating duration options:', error);
         }
     }
     
@@ -268,7 +347,8 @@ class CalculatorV2 {
         // Функция для пересчета стоимости (без пересчета маршрута)
         const recalculateCost = () => {
             if (this.calculationData.step1 && this.calculationData.step1.distance) {
-                const durationHours = parseInt(durationSelect?.value) || 1;
+                const durationLimits = this.getDurationLimits();
+        const durationHours = parseInt(durationSelect?.value) || durationLimits.min;
                 const urgentPickup = urgentCheckbox?.checked || false;
                 
                 const newTotal = this.calculateTotalCost(
@@ -671,7 +751,8 @@ class CalculatorV2 {
             const toAddressInput = document.getElementById('toAddress');
             const fromAddress = fromAddressInput?.value || '';
             const toAddress = toAddressInput?.value || '';
-            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            const durationLimits = this.getDurationLimits();
+            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             const urgentPickup = document.getElementById('urgentPickup')?.checked || false;
             
             console.log('Input values:', { fromAddress, toAddress, durationHours, urgentPickup });
@@ -1186,7 +1267,8 @@ class CalculatorV2 {
         if (loaders > 0) {
             // Базовая стоимость за грузчика - 500 рублей в час
             const loaderHourlyRate = 500;
-            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            const durationLimits = this.getDurationLimits();
+            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             loadersCost = loaders * loaderHourlyRate * durationHours;
             step2Cost += loadersCost;
         }
@@ -1198,7 +1280,8 @@ class CalculatorV2 {
         // Стоимость выбранного транспорта
         let vehicleCost = 0;
         if (this.selectedVehicle) {
-            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            const durationLimits = this.getDurationLimits();
+            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             vehicleCost = this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * durationHours);
             step2Cost += vehicleCost;
         }
@@ -1367,7 +1450,8 @@ class CalculatorV2 {
         try {
             // Используем новую систему расчета
             const routeCost = this.calculationData.step1.total || 0; // Это уже стоимость маршрута
-            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            const durationLimits = this.getDurationLimits();
+            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             
             // Расчет стоимости транспорта
             const vehicleCost = this.selectedVehicle ?
@@ -2100,7 +2184,7 @@ class CalculatorV2 {
                 from_address: document.getElementById('fromAddress')?.value || '',
                 to_address: document.getElementById('toAddress')?.value || '',
                 pickup_time: document.getElementById('pickupTime')?.value || '',
-                duration_hours: parseInt(document.getElementById('durationSelect')?.value) || 1,
+                duration_hours: parseInt(document.getElementById('durationSelect')?.value) || this.getDurationLimits().min,
                 urgent_pickup: document.getElementById('urgentPickup')?.checked || false,
                 distance: this.calculationData.step1.distance || null,  // This should be up-to-date from calculateStep1
                 passengers: parseInt(document.querySelector('.passenger-btn.bg-primary')?.dataset.value) || 0, // Get from selected button
@@ -2277,7 +2361,8 @@ class CalculatorV2 {
             }
             
             // Получаем актуальное значение duration_hours из DOM
-            const currentDurationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
+            const durationLimits = this.getDurationLimits();
+        const currentDurationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             
             // Формируем данные для отправки на backend
             const calculationData = {

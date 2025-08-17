@@ -8,6 +8,24 @@ from app.models import (
 from app.order_models import order_storage, OrderStatus, PaymentMethod, Order
 from app.media_models import media_database, MediaType, MediaCategory
 from app.config_manager import config_manager
+
+def validate_duration_hours(duration_hours: int) -> tuple[bool, str]:
+    """Валидация длительности на основе конфигурации"""
+    try:
+        limits = config_manager.get_calculator_limits()
+        min_duration = limits.get('min_duration_hours', 1)
+        max_duration = limits.get('max_duration_hours', 24)
+        
+        if duration_hours < min_duration or duration_hours > max_duration:
+            return False, f'Duration must be between {min_duration} and {max_duration} hours'
+        
+        return True, ''
+    except Exception as e:
+        app.logger.error(f"Error validating duration: {e}")
+        # Fallback к старым значениям
+        if duration_hours < 1 or duration_hours > 24:
+            return False, 'Duration must be between 1 and 24 hours'
+        return True, ''
 # Импорт функции для отправки в телеграм (опционально)
 try:
     from telegram_service.telegram_bot_standalone import send_order_to_telegram
@@ -77,8 +95,10 @@ def api_step1_v2():
         if not pickup_time:
             return jsonify({'error': 'Pickup time is required'}), 400
         
-        if duration_hours < 1 or duration_hours > 24:
-            return jsonify({'error': 'Duration must be between 1 and 24 hours'}), 400
+        # Валидация длительности на основе конфигурации
+        is_valid, error_message = validate_duration_hours(duration_hours)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
         
         # Создание объектов запроса
         route_request = RouteRequest(
@@ -291,6 +311,16 @@ def api_complete_calculation():
         # Валидация
         if not all([from_address, to_address, pickup_time, selected_vehicle_id]):
             return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Валидация длительности на основе конфигурации
+        try:
+            duration_hours = int(duration_hours)
+        except (ValueError, TypeError):
+            duration_hours = 1
+        
+        is_valid, error_message = validate_duration_hours(duration_hours)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
         
         # Создание объектов запроса
         route_request = RouteRequest(
@@ -706,6 +736,11 @@ def api_create_order():
             return jsonify({'error': 'Pickup time is required'}), 400
         if not selected_vehicle_id:
             return jsonify({'error': 'Selected vehicle is required'}), 400
+        
+        # Валидация длительности на основе конфигурации
+        is_valid, error_message = validate_duration_hours(duration_hours)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
 
         # Валидация метода оплаты
         try:
@@ -1233,6 +1268,11 @@ def api_calculate_price():
         
         if not pickup_time:
             return jsonify({'error': 'Pickup time is required'}), 400
+        
+        # Валидация длительности на основе конфигурации
+        is_valid, error_message = validate_duration_hours(duration_hours)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
         
         # Создание объектов запроса
         route_request = RouteRequest(
