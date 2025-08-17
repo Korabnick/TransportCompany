@@ -190,8 +190,12 @@ class CalculatorV2 {
         // Очищаем существующие кнопки
         container.innerHTML = '';
         
-        // Генерируем кнопки от 0 до maxCount
-        for (let i = 0; i <= maxCount; i++) {
+        // Определяем, нужно ли показывать специальную кнопку "4 или более"
+        const showSpecialButton = maxCount > 3;
+        const displayCount = showSpecialButton ? 3 : maxCount;
+        
+        // Генерируем кнопки от 0 до displayCount
+        for (let i = 0; i <= displayCount; i++) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = `${className} w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110`;
@@ -208,7 +212,27 @@ class CalculatorV2 {
             container.appendChild(button);
         }
         
-        console.log(`Generated ${maxCount + 1} ${type} buttons (0-${maxCount})`);
+        // Если нужно, добавляем специальную кнопку "4 или более"
+        if (showSpecialButton) {
+            const specialButton = document.createElement('button');
+            specialButton.type = 'button';
+            specialButton.className = `${className} px-3 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110 text-xs`;
+            specialButton.dataset.value = '4+';
+            specialButton.textContent = '4+';
+            specialButton.title = '4 или более';
+            
+            // Добавляем обработчик событий для специальной кнопки
+            if (type === 'passenger') {
+                specialButton.addEventListener('click', () => this.selectPassengers(4));
+            } else {
+                specialButton.addEventListener('click', () => this.selectLoaders(4));
+            }
+            
+            container.appendChild(specialButton);
+        }
+        
+        const totalButtons = showSpecialButton ? displayCount + 2 : displayCount + 1; // +1 для кнопки 0, +1 для специальной кнопки
+        console.log(`Generated ${totalButtons} ${type} buttons (0-${displayCount}${showSpecialButton ? ' + 4+' : ''})`);
     }
     
     /**
@@ -1499,7 +1523,16 @@ class CalculatorV2 {
             btn.classList.remove('bg-primary', 'text-white');
         });
         
-        const selectedBtn = document.querySelector(`.passenger-btn[data-value="${count}"]`);
+        // Ищем кнопку для выделения
+        let selectedBtn;
+        if (count >= 4) {
+            // Для значений 4 и больше ищем кнопку "4+"
+            selectedBtn = document.querySelector('.passenger-btn[data-value="4+"]');
+        } else {
+            // Для значений 0-3 ищем обычную кнопку
+            selectedBtn = document.querySelector(`.passenger-btn[data-value="${count}"]`);
+        }
+        
         if (selectedBtn) {
             selectedBtn.classList.add('bg-primary', 'text-white');
         }
@@ -1519,7 +1552,16 @@ class CalculatorV2 {
             btn.classList.remove('bg-primary', 'text-white');
         });
         
-        const selectedBtn = document.querySelector(`.loader-btn[data-value="${count}"]`);
+        // Ищем кнопку для выделения
+        let selectedBtn;
+        if (count >= 4) {
+            // Для значений 4 и больше ищем кнопку "4+"
+            selectedBtn = document.querySelector('.loader-btn[data-value="4+"]');
+        } else {
+            // Для значений 0-3 ищем обычную кнопку
+            selectedBtn = document.querySelector(`.loader-btn[data-value="${count}"]`);
+        }
+        
         if (selectedBtn) {
             selectedBtn.classList.add('bg-primary', 'text-white');
         }

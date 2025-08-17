@@ -434,6 +434,16 @@ body, button, input, select, textarea {
   justify-content: center;
 }
 
+/* Специальные стили для кнопки "4+" */
+.passenger-btn[data-value="4+"], .loader-btn[data-value="4+"] {
+  min-width: 60px;
+  aspect-ratio: auto;
+  padding: 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .passenger-btn:hover, .loader-btn:hover {
   background-color: var(--color-bg-tertiary);
   transform: scale(1.05);
@@ -613,6 +623,13 @@ body, button, input, select, textarea {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+  
+  /* Адаптивность для кнопки "4+" на мобильных */
+  .passenger-btn[data-value="4+"], .loader-btn[data-value="4+"] {
+    min-width: 50px;
+    font-size: 0.7rem;
+    padding: 0 6px;
   }
 }
 
