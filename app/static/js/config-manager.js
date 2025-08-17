@@ -108,7 +108,8 @@ class ConfigManager {
         const durationCostPerHour = pricing.duration_cost_per_hour || 100.0;
         const urgentMultiplier = urgentPickup ? (pricing.urgent_pickup_multiplier || 1.3) : 1.0;
         
-        const distanceCost = distance * baseCostPerKm;
+        // [ИСПРАВЛЕНО] При нулевой дистанции стоимость за путь = 0, но стоимость за длительность остается
+        const distanceCost = distance * baseCostPerKm; // При distance = 0 будет 0
         const durationCost = durationHours * durationCostPerHour;
         const baseTotalCost = distanceCost + durationCost;
         const total = Math.round(baseTotalCost * urgentMultiplier);

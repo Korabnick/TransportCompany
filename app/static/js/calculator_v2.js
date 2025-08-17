@@ -664,6 +664,9 @@ class CalculatorV2 {
         try {
             console.log('=== calculateStep1 called ===');
             
+            // [ИСПРАВЛЕНО] Сохраняем состояние выбранных дополнительных услуг перед пересчетом
+            const selectedAdditionalServices = this.saveSelectedAdditionalServices();
+            
             const fromAddressInput = document.getElementById('fromAddress');
             const toAddressInput = document.getElementById('toAddress');
             const fromAddress = fromAddressInput?.value || '';
@@ -770,7 +773,14 @@ class CalculatorV2 {
             this.calculationData.step1 = routeData;
             this.updateStep1Display(routeData);
             this.updateRouteCostDisplay();
-            this.showStep2();
+            
+            // [ИСПРАВЛЕНО] Показываем шаг 2 если есть валидная стоимость (даже при нулевой дистанции)
+            if (routeData.total > 0) {
+                this.showStep2();
+            }
+            
+            // [ИСПРАВЛЕНО] Восстанавливаем состояние выбранных дополнительных услуг после пересчета
+            this.restoreSelectedAdditionalServices(selectedAdditionalServices);
             
             console.log('Step1 calculation completed:', routeData);
             console.log('Step1 total cost:', routeData.total);
@@ -785,6 +795,12 @@ class CalculatorV2 {
     // Метод для оценки расстояния между адресами (для демонстрации)
     estimateDistance(fromAddress, toAddress) {
         console.log('estimateDistance called with:', { fromAddress, toAddress });
+        
+        // [ИСПРАВЛЕНО] Проверяем, что адреса не одинаковые
+        if (fromAddress.trim().toLowerCase() === toAddress.trim().toLowerCase()) {
+            console.log('Addresses are identical, cannot estimate distance');
+            return 0; // Возвращаем 0 для одинаковых адресов
+        }
         
         // Простая логика для демонстрации
         const fromLower = fromAddress.toLowerCase();
@@ -984,6 +1000,25 @@ class CalculatorV2 {
                 }
             }
             
+            // [ИСПРАВЛЕНО] Проверяем, что адреса "от" и "до" не одинаковые
+            if (coordinates.length >= 2) {
+                const fromCoord = coordinates[0];
+                const toCoord = coordinates[1];
+                const latDiff = Math.abs(fromCoord.lat - toCoord.lat);
+                const lonDiff = Math.abs(fromCoord.lon - toCoord.lon);
+                
+                // Если координаты практически одинаковые (разница менее 0.0001 градуса)
+                if (latDiff < 0.0001 && lonDiff < 0.0001) {
+                    console.log('Адреса "от" и "до" одинаковые - возвращаем нулевую дистанцию');
+                    // Возвращаем результат с нулевой дистанцией вместо ошибки
+                    return {
+                        distance: 0.0,
+                        duration: durationHours * 60, // в минутах
+                        coordinates: coordinates
+                    };
+                }
+            }
+            
             // Используем глобальный экземпляр MapIntegration
             if (!window.mapIntegration) {
                 console.error('MapIntegration instance not found');
@@ -993,15 +1028,15 @@ class CalculatorV2 {
             
             const route = await window.mapIntegration.calculateRoute(coordinates);
             
-            if (route && route.distance > 0) {
+            if (route && route.distance >= 0) {
                 console.log('Route calculated successfully:', route);
                 // [НОВОЕ] Округляем расстояние до 1 знака после запятой
                 route.distance = Math.round(route.distance * 10) / 10;
                 console.log(`Route distance rounded to: ${route.distance} km`);
                 return route;
             } else {
-                console.error('OSRM вернул пустой маршрут');
-                this.showError('Не удалось рассчитать маршрут. Попробуйте другие адреса.');
+                console.error('OSRM вернул пустой маршрут или отрицательное расстояние');
+                this.showError('Не удалось рассчитать маршрут. Попробуйте еще раз.');
                 return null;
             }
         } catch (error) {
@@ -1014,6 +1049,12 @@ class CalculatorV2 {
     calculateTotalCost(distance, durationHours, urgentPickup) {
         console.log('=== calculateTotalCost called ===');
         console.log('Input parameters:', { distance, durationHours, urgentPickup });
+        
+        // [ИСПРАВЛЕНО] Проверяем, что расстояние >= 0 (допускаем 0 для одинаковых адресов)
+        if (distance < 0) {
+            console.log('Distance is negative, cannot calculate cost');
+            return 0; // Возвращаем 0 для невалидного расстояния
+        }
         
         // Используем конфигурацию для расчета цен, если она доступна
         if (window.configManager && window.configManager.isReady()) {
@@ -1029,7 +1070,7 @@ class CalculatorV2 {
         
         // Шаг 1: Расчет стоимости за расстояние (1 км = 10 рублей)
         const baseCostPerKm = 10;
-        const distanceCost = distance * baseCostPerKm;
+        const distanceCost = distance * baseCostPerKm; // При distance = 0 будет 0
         console.log('Distance calculation:', { distance, baseCostPerKm, distanceCost });
         
         // Шаг 2: Расчет стоимости за длительность (100 рублей в час)
@@ -1067,12 +1108,19 @@ class CalculatorV2 {
     
     // Новый метод для пересчета стоимости шага 1
     recalculateStep1Cost() {
-        if (!this.calculationData.step1 || !this.calculationData.step1.distance) {
+        if (!this.calculationData.step1 || this.calculationData.step1.distance === undefined) {
             console.log('No step1 data available for recalculation');
             return;
         }
         
         const distance = this.calculationData.step1.distance;
+        
+        // [ИСПРАВЛЕНО] Проверяем, что расстояние >= 0 (допускаем 0 для одинаковых адресов)
+        if (distance < 0) {
+            console.log('Distance is negative, cannot recalculate cost');
+            return;
+        }
+        
         const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
         const urgentPickup = document.getElementById('urgentPickup')?.checked || false;
         
@@ -1112,29 +1160,19 @@ class CalculatorV2 {
         console.log('updateRouteCostDisplay called');
         console.log('Step1 data:', this.calculationData.step1);
         
-        if (this.calculationData.step1 && this.calculationData.step1.total) {
-            const routeCostElement = document.getElementById('routeCost');
-            console.log('Route cost element found:', routeCostElement);
+        const routeCostElement = document.getElementById('routeCost');
+        console.log('Route cost element found:', routeCostElement);
+        
+        if (routeCostElement) {
+            // Показываем 0 если данные невалидны, иначе реальную стоимость
+            const cost = (this.calculationData.step1 && this.calculationData.step1.total && this.calculationData.step1.total > 0) ? 
+                Math.round(this.calculationData.step1.total) : 0;
+            routeCostElement.textContent = `${cost} ₽`;
+            console.log('Route cost updated to:', cost);
             
-            if (routeCostElement) {
-                const cost = Math.round(this.calculationData.step1.total);
-                routeCostElement.textContent = `${cost} ₽`;
-                console.log('Route cost updated to:', cost);
-                
-                // Показываем шаг 3, если он еще не виден
-                const step3 = document.getElementById('step3');
-                if (step3 && step3.classList.contains('hidden')) {
-                    step3.classList.remove('hidden');
-                    step3.classList.add('md:col-span-1');
-                    console.log('Step 3 shown');
-                }
-                
-                console.log('Route cost updated:', this.calculationData.step1.total);
-            } else {
-                console.error('Route cost element not found');
-            }
+            console.log('Route cost updated:', this.calculationData.step1.total);
         } else {
-            console.log('No step1 data available for route cost display');
+            console.error('Route cost element not found');
         }
     }
 
@@ -1327,7 +1365,6 @@ class CalculatorV2 {
     
     async calculateStep3() {
         try {
-            // [ИСПРАВЛЕНО] Убираем ранний возврат - всегда рассчитываем на основе доступных данных
             // Используем новую систему расчета
             const routeCost = this.calculationData.step1.total || 0; // Это уже стоимость маршрута
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
@@ -1444,25 +1481,22 @@ class CalculatorV2 {
         const priceElement = document.getElementById('step1Price');
         const distanceElement = document.getElementById('step1Distance');
         const resultsBlock = document.getElementById('step1Results');
-        const step3 = document.getElementById('step3');
         
         if (priceElement) {
-            priceElement.textContent = `${Math.round(data.total)} ₽`;
+            // Показываем 0 если данные невалидны, иначе реальную цену
+            const price = (data && data.total && data.total > 0) ? Math.round(data.total) : 0;
+            priceElement.textContent = `${price} ₽`;
         }
         
         if (distanceElement) {
-            distanceElement.textContent = `${data.distance} км`;
+            // Показываем 0 если данные невалидны, иначе реальное расстояние (включая 0 для одинаковых адресов)
+            const distance = (data && data.distance !== undefined && data.distance >= 0) ? data.distance : 0;
+            distanceElement.textContent = `${distance} км`;
         }
         
-        // Показываем блок с результатами
+        // Показываем блок с результатами всегда
         if (resultsBlock) {
             resultsBlock.classList.remove('hidden');
-        }
-        
-        // Показываем шаг 3, если он еще не виден
-        if (step3 && step3.classList.contains('hidden')) {
-            step3.classList.remove('hidden');
-            step3.classList.add('md:col-span-1');
         }
     }
     
@@ -1669,6 +1703,7 @@ class CalculatorV2 {
     
     showStep2() {
         console.log('Showing step 2...');
+        
         const step2 = document.getElementById('step2');
         const newsCarousel = document.getElementById('newsCarousel');
         
@@ -1701,6 +1736,7 @@ class CalculatorV2 {
     
     showStep3() {
         console.log('Showing step 3...');
+        
         const step3 = document.getElementById('step3');
         
         if (step3) {
@@ -1859,6 +1895,48 @@ class CalculatorV2 {
         // Обновляем время последней активности и запускаем таймер
         this.lastUserActivity = Date.now();
         this.startAutoPriceUpdate();
+    }
+    
+    // [НОВОЕ] Функция для сохранения состояния выбранных дополнительных услуг
+    saveSelectedAdditionalServices() {
+        const selectedServices = {};
+        const serviceCheckboxes = document.querySelectorAll('#additionalServicesContainer input[type="checkbox"]');
+        
+        serviceCheckboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                const serviceId = checkbox.dataset.serviceId;
+                if (serviceId) {
+                    selectedServices[serviceId] = true;
+                }
+            }
+        });
+        
+        console.log('Saved additional services state:', selectedServices);
+        return selectedServices;
+    }
+    
+    // [НОВОЕ] Функция для восстановления состояния выбранных дополнительных услуг
+    restoreSelectedAdditionalServices(selectedServices) {
+        if (!selectedServices || Object.keys(selectedServices).length === 0) {
+            return;
+        }
+        
+        console.log('Restoring additional services state:', selectedServices);
+        
+        // Ждем немного, чтобы чекбоксы были сгенерированы
+        setTimeout(() => {
+            const serviceCheckboxes = document.querySelectorAll('#additionalServicesContainer input[type="checkbox"]');
+            
+            serviceCheckboxes.forEach(checkbox => {
+                const serviceId = checkbox.dataset.serviceId;
+                if (serviceId && selectedServices[serviceId]) {
+                    checkbox.checked = true;
+                }
+            });
+            
+            // Обновляем стоимость после восстановления состояния
+            this.updateAdditionalServicesCost();
+        }, 100);
     }
     
     async checkRateLimitStatus() {

@@ -1255,6 +1255,10 @@ def api_calculate_price():
             body_type=body_type
         )
         
+        # [ИСПРАВЛЕНО] Дополнительная проверка на нулевую дистанцию перед расчетом
+        if distance is not None and distance <= 0:
+            app.logger.info(f"Zero distance detected: {from_address} -> {to_address}, distance: {distance}")
+        
         # Полный расчет стоимости (все шаги)
         step1_result = CalculatorServiceV2.calculate_step1(route_request, time_request)
         step2_result = CalculatorServiceV2.calculate_step2(vehicle_request)

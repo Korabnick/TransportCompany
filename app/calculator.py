@@ -101,6 +101,10 @@ class DistanceService:
         Получение расстояния между адресами
         В реальности здесь будет интеграция с API карт
         """
+        # [ИСПРАВЛЕНО] Проверка на одинаковые адреса
+        if from_address.strip().lower() == to_address.strip().lower():
+            return 0.0  # Нулевая дистанция для одинаковых адресов
+        
         # Заглушка - возвращаем фиксированное расстояние
         # В реальности здесь будет запрос к Google Maps API или аналогичному сервису
         
@@ -115,14 +119,33 @@ class DistanceService:
     @staticmethod
     def calculate_route_price(distance: float, duration_hours: int, urgent_pickup: bool = False) -> Dict[str, float]:
         """Расчет стоимости маршрута - точно как на фронтенде"""
-        # Получаем цены из конфигурации
-        pricing = config_manager.get_pricing()
-        base_cost_per_km = pricing['base_cost_per_km']
-        duration_cost_per_hour = pricing['duration_cost_per_hour']
-        urgent_multiplier = pricing['urgent_pickup_multiplier'] if urgent_pickup else 1.0
+        # [ИСПРАВЛЕНО] Проверка на нулевую дистанцию
+        if distance <= 0:
+            # При нулевой дистанции стоимость за путь = 0
+            distance_cost = 0.0
+            # Логируем нулевую дистанцию
+            try:
+                if hasattr(current_app, 'logger'):
+                    current_app.logger.info(f"DistanceService: Zero distance detected, setting distance_cost to 0")
+            except AttributeError:
+                pass
+        else:
+            # Получаем цены из конфигурации
+            pricing = config_manager.get_pricing()
+            base_cost_per_km = pricing['base_cost_per_km']
+            # Шаг 1: Расчет стоимости за расстояние
+            distance_cost = distance * base_cost_per_km
         
-        # Шаг 1: Расчет стоимости за расстояние
-        distance_cost = distance * base_cost_per_km
+        # Получаем цены из конфигурации (если не получили ранее)
+        if distance > 0:
+            pricing = config_manager.get_pricing()
+            duration_cost_per_hour = pricing['duration_cost_per_hour']
+            urgent_multiplier = pricing['urgent_pickup_multiplier'] if urgent_pickup else 1.0
+        else:
+            # При нулевой дистанции используем дефолтные значения
+            pricing = config_manager.get_pricing()
+            duration_cost_per_hour = pricing['duration_cost_per_hour']
+            urgent_multiplier = pricing['urgent_pickup_multiplier'] if urgent_pickup else 1.0
         
         # Шаг 2: Расчет стоимости за длительность
         duration_cost = duration_hours * duration_cost_per_hour
@@ -165,12 +188,37 @@ class CalculatorServiceV2:
         # [НОВОЕ] Округляем расстояние до 1 знака после запятой
         distance = round(distance, 1)
         
-        # Рассчитываем стоимость
-        result = DistanceService.calculate_route_price(
-            distance, 
-            time_request.duration_hours, 
-            time_request.urgent_pickup
-        )
+        # [ИСПРАВЛЕНО] Дополнительная проверка на нулевую дистанцию
+        if distance <= 0:
+            # При нулевой дистанции создаем результат с нулевой стоимостью за путь
+            pricing = config_manager.get_pricing()
+            duration_cost_per_hour = pricing['duration_cost_per_hour']
+            urgent_multiplier = pricing['urgent_pickup_multiplier'] if time_request.urgent_pickup else 1.0
+            
+            duration_cost = time_request.duration_hours * duration_cost_per_hour
+            total = round(duration_cost * urgent_multiplier)
+            
+            # Логируем нулевую дистанцию
+            try:
+                if hasattr(current_app, 'logger'):
+                    current_app.logger.info(f"Zero distance calculation: distance={distance}, duration_cost={duration_cost}, total={total}")
+            except AttributeError:
+                pass
+            
+            result = {
+                'distance_cost': 0.0,
+                'duration_cost': duration_cost,
+                'base_total_cost': duration_cost,
+                'urgent_multiplier': urgent_multiplier,
+                'total': total
+            }
+        else:
+            # Рассчитываем стоимость через стандартный метод
+            result = DistanceService.calculate_route_price(
+                distance, 
+                time_request.duration_hours, 
+                time_request.urgent_pickup
+            )
         
         # Добавляем информацию о маршруте
         result['distance'] = distance
