@@ -103,26 +103,26 @@
     }
   ],
   "calculator_limits": {
-    "max_passengers": 2,
-    "max_loaders": 5,
+    "max_passengers": 4,
+    "max_loaders": 3,
     "max_duration_hours": 24,
     "min_duration_hours": 1
   },
   "additional_services": {
+    "driver_data": {
+      "name": "Данные водителя",
+      "price": 500.0,
+      "description": "Выслать паспортные данные водителя для оформления пропуска"
+    },
+    "insurance": {
+      "name": "Страховка на 100 000 ₽",
+      "price": 700.0,
+      "description": "В заказ включается страховка груза на 100 000 ₽"
+    },
     "packaging": {
       "name": "Упаковка",
       "price": 500.0,
       "description": "Профессиональная упаковка груза"
-    },
-    "insurance": {
-      "name": "Страхование",
-      "price": 1000.0,
-      "description": "Страхование груза в пути"
-    },
-    "loading_equipment": {
-      "name": "Погрузочное оборудование",
-      "price": 800.0,
-      "description": "Использование спецтехники для погрузки"
     }
   }
 }

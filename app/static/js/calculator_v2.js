@@ -45,9 +45,23 @@ class CalculatorV2 {
         this.loadVehicles();
         this.generatePassengerAndLoaderButtons();
         
+        // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
+        const additionalServicesContainer = document.getElementById('additionalServicesContainer');
+        if (additionalServicesContainer) {
+            additionalServicesContainer.innerHTML = '';
+        }
+        this.generateAdditionalServices(); // Генерируем дополнительные услуги
+        
         // Добавляем обработчик события загрузки конфигурации
         document.addEventListener('configLoaded', () => {
             this.generatePassengerAndLoaderButtons();
+            
+            // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
+            const additionalServicesContainer = document.getElementById('additionalServicesContainer');
+            if (additionalServicesContainer) {
+                additionalServicesContainer.innerHTML = '';
+            }
+            this.generateAdditionalServices(); // Генерируем дополнительные услуги при загрузке конфига
         });
         
         // Транспорт будет загружен и отображен при показе шага 2
@@ -116,6 +130,81 @@ class CalculatorV2 {
         }
         
         console.log(`Generated ${maxCount + 1} ${type} buttons (0-${maxCount})`);
+    }
+    
+    /**
+     * Динамически генерирует дополнительные услуги на основе конфигурации
+     */
+    generateAdditionalServices() {
+        if (!window.configManager || !window.configManager.isReady()) {
+            console.log('Config not loaded yet, skipping additional services generation');
+            return;
+        }
+        
+        try {
+            const container = document.getElementById('additionalServicesContainer');
+            if (!container) {
+                console.error('Additional services container not found');
+                return;
+            }
+            
+            // Очищаем существующие услуги
+            container.innerHTML = '';
+            
+            // Получаем услуги из конфигурации
+            const services = window.configManager.getAdditionalServices();
+            console.log('Generating additional services from config:', services);
+            
+            // Проверяем, что услуги существуют
+            if (!services || Object.keys(services).length === 0) {
+                console.log('No additional services found in config');
+                return;
+            }
+            
+            // Генерируем HTML для каждой услуги
+            Object.entries(services).forEach(([serviceId, service]) => {
+                const serviceDiv = document.createElement('div');
+                serviceDiv.className = 'flex items-start space-x-3';
+                serviceDiv.innerHTML = `
+                    <input
+                        type="checkbox"
+                        id="${serviceId}Service"
+                        class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                        data-service-id="${serviceId}"
+                        data-service-price="${service.price}"
+                    />
+                    <div class="flex-1">
+                        <label for="${serviceId}Service" class="block text-sm font-medium text-gray-800 cursor-pointer">
+                            ${service.name} - ${service.price} ₽
+                        </label>
+                        <p class="text-xs text-gray-600 mt-1">
+                            ${service.description}
+                        </p>
+                    </div>
+                `;
+                
+                // Добавляем обработчик события для чекбокса
+                const checkbox = serviceDiv.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.addEventListener('change', () => {
+                        this.updateAdditionalServicesCost();
+                    });
+                }
+                
+                container.appendChild(serviceDiv);
+            });
+            
+            console.log(`Generated ${Object.keys(services).length} additional services`);
+            
+            // Обновляем стоимость дополнительных услуг после генерации
+            // Добавляем небольшую задержку для корректного расчета
+            setTimeout(() => {
+                this.updateAdditionalServicesCost();
+            }, 2100);
+            
+        } catch (error) {
+            console.error('Error generating additional services:', error);
+        }
     }
     
     bindEvents() {
@@ -1598,6 +1687,13 @@ class CalculatorV2 {
             
             // Генерируем кнопки пассажиров и грузчиков на основе конфига
             this.generatePassengerAndLoaderButtons();
+            
+            // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
+            const additionalServicesContainer = document.getElementById('additionalServicesContainer');
+            if (additionalServicesContainer) {
+                additionalServicesContainer.innerHTML = '';
+            }
+            this.generateAdditionalServices();
         } else {
             console.error('Step2 or newsCarousel elements not found!');
         }
@@ -1628,21 +1724,8 @@ class CalculatorV2 {
             });
         }
         
-        // Обработка чекбоксов дополнительных услуг
-        const driverDataCheckbox = document.getElementById('driverDataService');
-        const insuranceCheckbox = document.getElementById('insuranceService');
-        
-        if (driverDataCheckbox) {
-            driverDataCheckbox.addEventListener('change', () => {
-                this.updateAdditionalServicesCost();
-            });
-        }
-        
-        if (insuranceCheckbox) {
-            insuranceCheckbox.addEventListener('change', () => {
-                this.updateAdditionalServicesCost();
-            });
-        }
+        // Обработчики для чекбоксов дополнительных услуг будут добавлены динамически
+        // при генерации услуг в методе generateAdditionalServices()
     }
     
     bindOrderNotesEvents() {
@@ -1693,7 +1776,7 @@ class CalculatorV2 {
                 content.classList.add('hidden');
                 content.style.transition = '';
                 content.style.maxHeight = '';
-            }, 300);
+            }, 10);
             
             // Меняем иконку
             icon.className = 'ri-add-circle-line mr-2 transition-transform hover:scale-125';
@@ -1709,7 +1792,10 @@ class CalculatorV2 {
             content.style.maxHeight = '0';
             content.style.overflow = 'hidden';
             
-            // Плавная анимация
+            // Генерируем дополнительные услуги при открытии
+            this.generateAdditionalServices();
+            
+            // Плавная анимация с задержкой для корректного расчета высоты
             setTimeout(() => {
                 content.style.transition = 'max-height 0.3s ease-in-out';
                 content.style.maxHeight = content.scrollHeight + 'px';
@@ -1725,7 +1811,7 @@ class CalculatorV2 {
                 content.classList.add('hidden');
                 content.style.transition = '';
                 content.style.maxHeight = '';
-            }, 300);
+            }, 10);
             
             // Меняем иконку
             icon.className = 'ri-add-circle-line mr-2 transition-transform hover:scale-125';
@@ -1733,23 +1819,35 @@ class CalculatorV2 {
     }
     
     updateAdditionalServicesCost() {
-        const driverDataCheckbox = document.getElementById('driverDataService');
-        const insuranceCheckbox = document.getElementById('insuranceService');
-        
         let totalAdditionalCost = 0;
         
-        if (driverDataCheckbox && driverDataCheckbox.checked) {
-            totalAdditionalCost += 500;
+        // Получаем все чекбоксы дополнительных услуг
+        const serviceCheckboxes = document.querySelectorAll('#additionalServicesContainer input[type="checkbox"]');
+        
+        // Проверяем, что чекбоксы существуют
+        if (serviceCheckboxes.length === 0) {
+            console.log('No additional service checkboxes found');
+            // Сбрасываем стоимость
+            this.additionalServicesCost = 0;
+            const additionalServicesCostElement = document.getElementById('additionalServicesCost');
+            if (additionalServicesCostElement) {
+                additionalServicesCostElement.textContent = '0 ₽';
+            }
+            return;
         }
         
-        if (insuranceCheckbox && insuranceCheckbox.checked) {
-            totalAdditionalCost += 700;
-        }
+        // Считаем стоимость выбранных услуг
+        serviceCheckboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                const price = parseFloat(checkbox.dataset.servicePrice) || 0;
+                totalAdditionalCost += price;
+            }
+        });
         
         // Сохраняем стоимость дополнительных услуг
         this.additionalServicesCost = totalAdditionalCost;
         
-        // [ИСПРАВЛЕНО] Обновляем отображение стоимости дополнительных услуг напрямую
+        // Обновляем отображение стоимости дополнительных услуг
         const additionalServicesCostElement = document.getElementById('additionalServicesCost');
         if (additionalServicesCostElement) {
             additionalServicesCostElement.textContent = `${totalAdditionalCost} ₽`;
@@ -2014,6 +2112,13 @@ class CalculatorV2 {
         // Пересоздаем кнопки пассажиров и грузчиков на основе конфига
         this.generatePassengerAndLoaderButtons();
         
+        // Очищаем контейнер дополнительных услуг и пересоздаем их на основе конфига
+        const additionalServicesContainer = document.getElementById('additionalServicesContainer');
+        if (additionalServicesContainer) {
+            additionalServicesContainer.innerHTML = '';
+        }
+        this.generateAdditionalServices();
+        
         // Сбрасываем радиокнопки
         document.querySelectorAll('input[type="radio"]').forEach(radio => {
             radio.checked = false;
@@ -2033,6 +2138,21 @@ class CalculatorV2 {
                 indicator.classList.remove('bg-transparent');
                 indicator.classList.add('bg-primary');
             }
+        }
+        
+        // Сбрасываем стоимость дополнительных услуг
+        this.additionalServicesCost = 0;
+        const additionalServicesCostElement = document.getElementById('additionalServicesCost');
+        if (additionalServicesCostElement) {
+            additionalServicesCostElement.textContent = '0 ₽';
+        }
+        
+        // Сбрасываем чекбоксы дополнительных услуг
+        const serviceCheckboxes = document.querySelectorAll('#additionalServicesContainer input[type="checkbox"]');
+        if (serviceCheckboxes.length > 0) {
+            serviceCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
         }
         
         // Очищаем отображение стоимости

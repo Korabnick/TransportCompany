@@ -395,40 +395,8 @@
               
               <!-- Скрытый блок с дополнительными услугами -->
               <div id="additionalServicesContent" class="hidden mt-4 p-4 rounded-lg border border-gray-200" style="background-color: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px);">
-                <div class="space-y-4">
-                  <!-- Данные водителя -->
-                  <div class="flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id="driverDataService"
-                      class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    />
-                    <div class="flex-1">
-                      <label for="driverDataService" class="block text-sm font-medium text-gray-800 cursor-pointer">
-                        Данные водителя - 500 ₽
-                      </label>
-                      <p class="text-xs text-gray-600 mt-1">
-                        Выслать паспортные данные водителя для оформления пропуска
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <!-- Страховка -->
-                  <div class="flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id="insuranceService"
-                      class="mt-1 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                    />
-                    <div class="flex-1">
-                      <label for="insuranceService" class="block text-sm font-medium text-gray-800 cursor-pointer">
-                        Страховка на 100 000 ₽ - 700 ₽
-                      </label>
-                      <p class="text-xs text-gray-600 mt-1">
-                        В заказ включается страховка груза на 100 000 ₽
-                      </p>
-                    </div>
-                  </div>
+                <div class="space-y-4" id="additionalServicesContainer">
+                  <!-- Дополнительные услуги будут загружены динамически из конфигурации -->
                 </div>
               </div>
             </div>
