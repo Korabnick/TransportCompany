@@ -73,48 +73,45 @@ class MapIntegration {
         // Привязываем события к существующим кнопкам
         this.bindMapButtons();
         
-        // Закрытие popup
-        const closeMapPopup = document.getElementById('closeMapPopup');
-        if (closeMapPopup) {
-            closeMapPopup.addEventListener('click', () => {
+        // Обработчик для кнопки закрытия popup
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'closeMapPopup') {
                 this.closeMap();
-            });
-        } else {
-            console.error('MapIntegration: closeMapPopup element not found');
-        }
+            }
+        });
         
-        // Отмена выбора
-        const cancelMapSelection = document.getElementById('cancelMapSelection');
-        if (cancelMapSelection) {
-            cancelMapSelection.addEventListener('click', () => {
+        // Обработчик для кнопки отмены выбора
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'cancelMapSelection') {
                 this.closeMap();
-            });
-        } else {
-            console.error('MapIntegration: cancelMapSelection element not found');
-        }
+            }
+        });
         
-        // Подтверждение выбора
-        const confirmMapSelection = document.getElementById('confirmMapSelection');
-        if (confirmMapSelection) {
-            console.log('MapIntegration: Found confirmMapSelection button, adding event listener');
-            confirmMapSelection.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+        // Обработчик для кнопки подтверждения выбора
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'confirmMapSelection') {
                 this.confirmSelection();
-            });
-        } else {
-            console.error('MapIntegration: confirmMapSelection element not found');
-        }
+            }
+        });
         
-        // Поиск по адресу
-        const mapSearchBtn = document.getElementById('mapSearchBtn');
-        if (mapSearchBtn) {
-            mapSearchBtn.addEventListener('click', () => {
+        // Обработчик для кнопки поиска
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'mapSearchBtn') {
                 this.searchAddress();
-            });
-        } else {
-            console.error('MapIntegration: mapSearchBtn element not found');
-        }
+            }
+        });
+        
+        // Обработчик изменения размера окна для адаптивности
+        window.addEventListener('resize', () => {
+            this.handleWindowResize();
+        });
+        
+        // Обработчик изменения ориентации устройства
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                this.handleWindowResize();
+            }, 100);
+        });
         
         // Поиск по Enter
         const mapSearchInput = document.getElementById('mapSearchInput');
@@ -262,6 +259,21 @@ class MapIntegration {
         const popupHeight = 500;
         const margin = 20;
         
+        // Проверяем, является ли устройство мобильным
+        const isMobile = this.isMobileDevice();
+        
+        if (isMobile) {
+            // Для мобильных устройств используем оптимальные размеры
+            const optimalSize = this.getOptimalPopupSize();
+            
+            popup.style.left = optimalSize.left;
+            popup.style.top = optimalSize.top;
+            popup.style.width = optimalSize.width;
+            popup.style.height = optimalSize.height;
+            return;
+        }
+        
+        // Для десктопных устройств используем оригинальную логику
         // Вычисляем позицию
         let left = buttonRect.right + margin;
         let top = buttonRect.top;
@@ -289,6 +301,8 @@ class MapIntegration {
         // Устанавливаем позицию
         popup.style.left = left + 'px';
         popup.style.top = top + 'px';
+        popup.style.width = popupWidth + 'px';
+        popup.style.height = popupHeight + 'px';
     }
     
     closeMap() {
@@ -341,6 +355,56 @@ class MapIntegration {
         this.currentButton = null;
         
         console.log('MapIntegration: Map popup closed');
+    }
+    
+    handleWindowResize() {
+        console.log('MapIntegration: Handling window resize');
+        const popup = document.getElementById('mapPopup');
+        if (popup && !popup.classList.contains('hidden') && this.currentButton) {
+            this.positionPopup(popup, this.currentButton);
+        }
+    }
+    
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               window.innerWidth <= 768;
+    }
+    
+    isLandscapeOrientation() {
+        return window.innerWidth > window.innerHeight;
+    }
+    
+    getOptimalPopupSize() {
+        const isMobile = this.isMobileDevice();
+        const isLandscape = this.isLandscapeOrientation();
+        
+        if (isMobile) {
+            if (isLandscape) {
+                // Горизонтальная ориентация на мобильных
+                return {
+                    width: 'calc(100vw - 40px)',
+                    height: 'calc(100vh - 40px)',
+                    left: '20px',
+                    top: '20px'
+                };
+            } else {
+                // Вертикальная ориентация на мобильных
+                return {
+                    width: 'calc(100vw - 40px)',
+                    height: 'calc(100vh - 40px)',
+                    left: '20px',
+                    top: '20px'
+                };
+            }
+        } else {
+            // Десктоп
+            return {
+                width: '500px',
+                height: '500px',
+                left: null,
+                top: null
+            };
+        }
     }
     
     initMap() {

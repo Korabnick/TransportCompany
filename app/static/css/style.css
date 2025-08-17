@@ -993,6 +993,347 @@ input[type="datetime-local"]:invalid:focus {
     height: 500px; /* Defined in JS, but good to keep here for clarity */
 }
 
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    #mapPopup {
+        width: calc(100vw - 40px); /* Полная ширина экрана минус отступы */
+        height: calc(100vh - 40px); /* Полная высота экрана минус отступы */
+        left: 20px !important; /* Принудительно центрируем по горизонтали */
+        top: 20px !important; /* Принудительно центрируем по вертикали */
+        transform: none !important; /* Убираем любые трансформации */
+    }
+    
+    .map-popup-container {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+    }
+    
+    #mapPopup .popup-header {
+        padding: 0.75rem;
+    }
+    
+    #mapPopup .popup-header h3 {
+        font-size: 1rem;
+    }
+    
+    #mapPopup .popup-content {
+        padding: 0.75rem;
+        height: calc(100% - 140px); /* Уменьшаем отступы для мобильных */
+    }
+    
+    #mapPopup .popup-footer {
+        padding: 0.75rem;
+    }
+    
+    #mapPopup .popup-footer button {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Адаптивность для очень маленьких экранов */
+@media (max-width: 480px) {
+    #mapPopup {
+        width: calc(100vw - 20px); /* Уменьшаем отступы */
+        height: calc(100vh - 20px);
+        left: 10px !important;
+        top: 10px !important;
+    }
+    
+    #mapPopup .popup-header {
+        padding: 0.5rem;
+    }
+    
+    #mapPopup .popup-header h3 {
+        font-size: 0.875rem;
+    }
+    
+    #mapPopup .popup-content {
+        padding: 0.5rem;
+        height: calc(100% - 120px);
+    }
+    
+    #mapPopup .popup-footer {
+        padding: 0.5rem;
+    }
+    
+    #mapPopup .popup-footer button {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+    }
+    
+    #mapSearchInput {
+        font-size: 0.875rem;
+        padding: 0.5rem;
+    }
+}
+
+/* Адаптивность для горизонтальной ориентации мобильных устройств */
+@media (max-width: 768px) and (orientation: landscape) {
+    #mapPopup {
+        width: calc(100vw - 40px);
+        height: calc(100vh - 40px);
+        left: 20px !important;
+        top: 20px !important;
+    }
+    
+    #mapPopup .popup-header {
+        padding: 0.5rem;
+    }
+    
+    #mapPopup .popup-header h3 {
+        font-size: 0.875rem;
+    }
+    
+    #mapPopup .popup-content {
+        padding: 0.5rem;
+        height: calc(100% - 100px); /* Уменьшаем отступы для горизонтальной ориентации */
+    }
+    
+    #mapPopup .popup-footer {
+        padding: 0.5rem;
+    }
+    
+    #mapPopup .popup-footer button {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Дополнительные стили для мобильных устройств */
+@media (max-width: 768px) {
+    /* Улучшенные стили для кнопок на мобильных */
+    #mapPopup .popup-footer button {
+        min-height: 44px; /* Минимальная высота для touch-устройств */
+        touch-action: manipulation; /* Улучшает отзывчивость на touch */
+    }
+    
+    /* Улучшенные стили для поля поиска */
+    #mapSearchInput {
+        min-height: 44px; /* Минимальная высота для touch-устройств */
+        font-size: 16px; /* Предотвращает zoom на iOS */
+    }
+    
+    /* Улучшенные стили для заголовка */
+    #mapPopup .popup-header button {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Улучшенные стили для контейнера карты */
+    #mapContainer {
+        border-radius: 0.375rem; /* Уменьшаем радиус для мобильных */
+    }
+}
+
+/* Стили для очень маленьких экранов с улучшенной touch-поддержкой */
+@media (max-width: 480px) {
+    #mapPopup .popup-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    #mapPopup .popup-footer button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Улучшенные стили для поиска */
+    #mapSearchInput {
+        font-size: 16px;
+        padding: 0.75rem;
+    }
+    
+    /* Улучшенные стили для заголовка */
+    #mapPopup .popup-header h3 {
+        font-size: 1rem;
+        line-height: 1.2;
+    }
+}
+
+/* Специальные стили для устройств с высоким DPI */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    #mapPopup .popup-header button {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .dark #mapPopup .popup-header button {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Предотвращение горизонтального скролла на мобильных */
+@media (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+    }
+    
+    #mapPopup {
+        overflow: hidden;
+    }
+    
+    .map-popup-container {
+        overflow: hidden;
+    }
+}
+
+/* Стили для предотвращения zoom на iOS */
+@media (max-width: 768px) {
+    input[type="text"], 
+    input[type="search"] {
+        font-size: 16px !important;
+    }
+}
+
+/* Улучшенная поддержка touch-событий на мобильных */
+@media (max-width: 768px) {
+    #mapPopup * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+    
+    #mapPopup input,
+    #mapPopup button {
+        -webkit-user-select: text;
+        -khtml-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+    }
+    
+    /* Улучшенные стили для скролла на мобильных */
+    #mapPopup .popup-content {
+        -webkit-overflow-scrolling: touch;
+        overflow-scrolling: touch;
+    }
+    
+    /* Улучшенные стили для кнопок на мобильных */
+    #mapPopup button {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    #mapPopup button:active {
+        transform: scale(0.95);
+    }
+}
+
+/* Стили для устройств с очень маленькими экранами */
+@media (max-width: 360px) {
+    #mapPopup {
+        width: calc(100vw - 10px);
+        height: calc(100vh - 10px);
+        left: 5px !important;
+        top: 5px !important;
+    }
+    
+    #mapPopup .popup-header {
+        padding: 0.375rem;
+    }
+    
+    #mapPopup .popup-header h3 {
+        font-size: 0.75rem;
+    }
+    
+    #mapPopup .popup-content {
+        padding: 0.375rem;
+        height: calc(100% - 100px);
+    }
+    
+    #mapPopup .popup-footer {
+        padding: 0.375rem;
+    }
+    
+    #mapPopup .popup-footer button {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        min-height: 36px;
+    }
+    
+    #mapSearchInput {
+        font-size: 14px;
+        padding: 0.5rem;
+        min-height: 36px;
+    }
+}
+
+/* Стили для устройств с высоким DPI и маленькими экранами */
+@media (max-width: 480px) and (-webkit-min-device-pixel-ratio: 2) {
+    #mapPopup .popup-header button {
+        min-width: 48px;
+        min-height: 48px;
+    }
+    
+    #mapPopup .popup-footer button {
+        min-height: 48px;
+    }
+    
+    #mapSearchInput {
+        min-height: 48px;
+    }
+}
+
+/* Поддержка для различных браузеров */
+@supports (-webkit-appearance: none) {
+    #mapPopup button {
+        -webkit-appearance: none;
+    }
+}
+
+@supports (-moz-appearance: none) {
+    #mapPopup button {
+        -moz-appearance: none;
+    }
+}
+
+/* Стили для устройств с поддержкой hover */
+@media (hover: hover) {
+    #mapPopup button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+}
+
+/* Стили для устройств без поддержки hover (touch-устройства) */
+@media (hover: none) {
+    #mapPopup button:active {
+        opacity: 0.8;
+        transform: scale(0.98);
+    }
+}
+
+/* Улучшенная поддержка для iOS Safari */
+@supports (-webkit-touch-callout: none) {
+    #mapPopup {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #mapPopup input {
+        -webkit-appearance: none;
+        border-radius: 8px;
+    }
+}
+
+/* Улучшенная поддержка для Android Chrome */
+@supports (-webkit-tap-highlight-color: transparent) {
+    #mapPopup button {
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
 .map-popup-container {
     background-color: var(--color-bg-primary) !important;
     border: 1px solid #e5e7eb !important;
@@ -1354,4 +1695,5 @@ input[type="datetime-local"]:invalid:focus {
 #callbackModal .close-btn:hover {
   color: var(--color-text-primary);
 }
+
 
