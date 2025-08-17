@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from enum import Enum
 import json
+from app.config_manager import config_manager
 
 class BodyType(Enum):
     TENT = "tent"
@@ -115,84 +116,38 @@ class VehicleDatabase:
         self._vehicles = self._initialize_vehicles()
     
     def _initialize_vehicles(self) -> List[Vehicle]:
-        """Инициализация базы транспорта"""
-        return [
-            Vehicle(
-                id=1,
-                name="Газель Тент",
-                type=VehicleType.GAZEL,
-                body_type=BodyType.TENT,
-                price_per_hour=800,
-                price_per_km=25,
-                base_price=500,
-                max_passengers=2,
-                max_loaders=1,
-                dimensions={'height': 2.0, 'length': 3.0, 'width': 2.0},
-                capacity=12.0,
-                image_url="/static/img/gazel-tent.jpg",
-                description="Идеально для перевозки мебели и бытовой техники"
-            ),
-            Vehicle(
-                id=2,
-                name="Газель Фургон",
-                type=VehicleType.GAZEL,
-                body_type=BodyType.VAN,
-                price_per_hour=900,
-                price_per_km=28,
-                base_price=600,
-                max_passengers=2,
-                max_loaders=1,
-                dimensions={'height': 1.8, 'length': 3.0, 'width': 2.0},
-                capacity=10.8,
-                image_url="/static/img/gazel-van.jpg",
-                description="Защищенный кузов для ценных грузов"
-            ),
-            Vehicle(
-                id=3,
-                name="Грузовик 5 тонн",
-                type=VehicleType.TRUCK,
-                body_type=BodyType.BOARD,
-                price_per_hour=1200,
-                price_per_km=35,
-                base_price=800,
-                max_passengers=3,
-                max_loaders=2,
-                dimensions={'height': 2.2, 'length': 5.0, 'width': 2.4},
-                capacity=26.4,
-                image_url="/static/img/truck-5t.jpg",
-                description="Для крупных перевозок и строительных материалов"
-            ),
-            Vehicle(
-                id=4,
-                name="Микроавтобус",
-                type=VehicleType.MINIBUS,
-                body_type=BodyType.VAN,
-                price_per_hour=1000,
-                price_per_km=30,
-                base_price=700,
-                max_passengers=8,
-                max_loaders=2,
-                dimensions={'height': 1.9, 'length': 4.5, 'width': 2.0},
-                capacity=17.1,
-                image_url="/static/img/minibus.jpg",
-                description="Комфортная перевозка пассажиров с грузом"
-            ),
-            Vehicle(
-                id=5,
-                name="Спецтранспорт",
-                type=VehicleType.SPECIAL,
-                body_type=BodyType.VAN,
-                price_per_hour=1500,
-                price_per_km=40,
-                base_price=1000,
-                max_passengers=2,
-                max_loaders=3,
-                dimensions={'height': 2.5, 'length': 6.0, 'width': 2.5},
-                capacity=37.5,
-                image_url="/static/img/special.jpg",
-                description="Для особо крупных и тяжелых грузов"
-            )
-        ]
+        """Инициализация базы транспорта из конфигурации"""
+        vehicles = []
+        config_vehicles = config_manager.get_vehicles()
+        
+        for vehicle_data in config_vehicles:
+            try:
+                # Преобразуем тип транспорта
+                vehicle_type = VehicleType(vehicle_data['type'])
+                body_type = BodyType(vehicle_data['body_type'])
+                
+                vehicle = Vehicle(
+                    id=vehicle_data['id'],
+                    name=vehicle_data['name'],
+                    type=vehicle_type,
+                    body_type=body_type,
+                    price_per_hour=vehicle_data['price_per_hour'],
+                    price_per_km=vehicle_data['price_per_km'],
+                    base_price=vehicle_data['base_price'],
+                    max_passengers=vehicle_data['max_passengers'],
+                    max_loaders=vehicle_data['max_loaders'],
+                    dimensions=vehicle_data['dimensions'],
+                    capacity=vehicle_data['capacity'],
+                    image_url=vehicle_data['image_url'],
+                    description=vehicle_data['description']
+                )
+                vehicles.append(vehicle)
+                
+            except (KeyError, ValueError) as e:
+                print(f"Error creating vehicle from config: {e}, vehicle data: {vehicle_data}")
+                continue
+        
+        return vehicles
     
     def get_all_vehicles(self) -> List[Vehicle]:
         """Получить все доступные транспортные средства"""

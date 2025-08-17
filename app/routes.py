@@ -7,6 +7,7 @@ from app.models import (
 )
 from app.order_models import order_storage, OrderStatus, PaymentMethod, Order
 from app.media_models import media_database, MediaType, MediaCategory
+from app.config_manager import config_manager
 # Импорт функции для отправки в телеграм (опционально)
 try:
     from telegram_service.telegram_bot_standalone import send_order_to_telegram
@@ -1402,4 +1403,48 @@ def api_get_categories():
         
     except Exception as e:
         app.logger.error(f"Get categories error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/config/calculator', methods=['GET'])
+@rate_limit(max_requests=100, window_seconds=60)
+def api_get_calculator_config():
+    """API для получения конфигурации калькулятора"""
+    try:
+        # Проверяем валидность конфигурации
+        if not config_manager.validate_config():
+            return jsonify({'error': 'Invalid configuration'}), 500
+        
+        # Экспортируем конфигурацию для фронтенда
+        config_data = config_manager.export_config_for_frontend()
+        
+        return jsonify({
+            'success': True,
+            'data': config_data
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Get calculator config error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/config/reload', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=60)
+def api_reload_config():
+    """API для перезагрузки конфигурации (только для админов)"""
+    try:
+        # Здесь можно добавить проверку авторизации
+        # Пока что просто перезагружаем конфигурацию
+        
+        config_manager.reload_config()
+        
+        # Проверяем валидность после перезагрузки
+        if not config_manager.validate_config():
+            return jsonify({'error': 'Invalid configuration after reload'}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configuration reloaded successfully'
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Reload config error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

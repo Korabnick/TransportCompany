@@ -11,6 +11,7 @@ from app.models import (
     Vehicle, VehicleRequest, RouteRequest, TimeRequest, 
     CalculationResult, VehicleDatabase, BodyType
 )
+from app.config_manager import config_manager
 
 class RateLimiter:
     """Система ограничения частоты запросов"""
@@ -114,20 +115,22 @@ class DistanceService:
     @staticmethod
     def calculate_route_price(distance: float, duration_hours: int, urgent_pickup: bool = False) -> Dict[str, float]:
         """Расчет стоимости маршрута - точно как на фронтенде"""
-        # Шаг 1: Расчет стоимости за расстояние (1 км = 10 рублей) - как на фронтенде
-        base_cost_per_km = 10.0
+        # Получаем цены из конфигурации
+        pricing = config_manager.get_pricing()
+        base_cost_per_km = pricing['base_cost_per_km']
+        duration_cost_per_hour = pricing['duration_cost_per_hour']
+        urgent_multiplier = pricing['urgent_pickup_multiplier'] if urgent_pickup else 1.0
+        
+        # Шаг 1: Расчет стоимости за расстояние
         distance_cost = distance * base_cost_per_km
         
-        # Шаг 2: Расчет стоимости за длительность (100 рублей в час) - как на фронтенде
-        duration_cost_per_hour = 100.0
+        # Шаг 2: Расчет стоимости за длительность
         duration_cost = duration_hours * duration_cost_per_hour
         
         # Шаг 3: Общая стоимость без срочной подачи
         base_total_cost = distance_cost + duration_cost
         
-        # Шаг 4: Применяем срочную подачу (+30% к общей стоимости) - как на фронтенде
-        urgent_multiplier = 1.3 if urgent_pickup else 1.0
-        
+        # Шаг 4: Применяем срочную подачу
         total = round(base_total_cost * urgent_multiplier)
         
         return {
@@ -231,7 +234,8 @@ class CalculatorServiceV2:
             )
         
         # Стоимость грузчиков
-        loader_price_per_hour = 500.0  # Цена за грузчика в час
+        pricing = config_manager.get_pricing()
+        loader_price_per_hour = pricing['loader_price_per_hour']
         loaders_cost = loaders * loader_price_per_hour * duration_hours
         
         # Итоговая стоимость

@@ -27,8 +27,19 @@ class CalculatorV2 {
         this.init();
     }
     
-    init() {
+    async init() {
         console.log('CalculatorV2 init called');
+        
+        // Ждем загрузки конфигурации
+        if (window.configManager) {
+            try {
+                await window.configManager.waitForConfig();
+                console.log('Configuration loaded, proceeding with initialization');
+            } catch (error) {
+                console.error('Failed to load configuration:', error);
+            }
+        }
+        
         this.bindEvents();
         this.checkRateLimitStatus();
         this.loadVehicles();
@@ -843,7 +854,17 @@ class CalculatorV2 {
         console.log('=== calculateTotalCost called ===');
         console.log('Input parameters:', { distance, durationHours, urgentPickup });
         
-        // Новая система расчета согласно требованиям пользователя
+        // Используем конфигурацию для расчета цен, если она доступна
+        if (window.configManager && window.configManager.isReady()) {
+            const result = window.configManager.calculateRoutePrice(distance, durationHours, urgentPickup);
+            if (result) {
+                console.log('Using config-based calculation:', result);
+                return result.total;
+            }
+        }
+        
+        // Fallback к старым значениям, если конфигурация не загружена
+        console.log('Using fallback calculation');
         
         // Шаг 1: Расчет стоимости за расстояние (1 км = 10 рублей)
         const baseCostPerKm = 10;
@@ -2224,8 +2245,19 @@ function showNotification(message, type = 'info') {
 }
 
 // Инициализация калькулятора при загрузке страницы
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", async function() {
     console.log('DOMContentLoaded event fired');
+    
+    // Ждем загрузки конфигурации
+    if (window.configManager) {
+        try {
+            console.log('Waiting for configuration to load...');
+            await window.configManager.waitForConfig();
+            console.log('Configuration loaded successfully');
+        } catch (error) {
+            console.error('Failed to load configuration:', error);
+        }
+    }
     
     // Инициализируем основной калькулятор
     console.log('Creating CalculatorV2 instance...');
