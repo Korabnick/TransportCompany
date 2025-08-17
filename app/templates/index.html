@@ -333,82 +333,14 @@
             <h3 class="font-bold text-gray-800 mb-4">Шаг 2: Выбор машины</h3>
             <div>
               <p class="text-sm text-gray-600 mb-2">Пассажиры:</p>
-              <div class="flex space-x-2">
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="0"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="1"
-                >
-                  1
-                </button>
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="2"
-                >
-                  2
-                </button>
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="3"
-                >
-                  3
-                </button>
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="4"
-                >
-                  4
-                </button>
-                <button
-                  type="button"
-                  class="passenger-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="5"
-                >
-                  5
-                </button>
+              <div class="flex space-x-2" id="passenger-buttons-container">
+                <!-- Кнопки пассажиров будут сгенерированы динамически -->
               </div>
             </div>
             <div>
               <p class="text-sm text-gray-600 mb-2">Грузчики:</p>
-              <div class="flex space-x-2">
-                <button
-                  type="button"
-                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="0"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="1"
-                >
-                  1
-                </button>
-                <button
-                  type="button"
-                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="2"
-                >
-                  2
-                </button>
-                <button
-                  type="button"
-                  class="loader-btn w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110"
-                  data-value="3"
-                >
-                  3
-                </button>
+              <div class="flex space-x-2" id="loader-buttons-container">
+                <!-- Кнопки грузчиков будут сгенерированы динамически -->
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">

@@ -103,8 +103,8 @@
     }
   ],
   "calculator_limits": {
-    "max_passengers": 4,
-    "max_loaders": 3,
+    "max_passengers": 2,
+    "max_loaders": 5,
     "max_duration_hours": 24,
     "min_duration_hours": 1
   },

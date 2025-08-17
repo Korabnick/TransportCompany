@@ -43,7 +43,79 @@ class CalculatorV2 {
         this.bindEvents();
         this.checkRateLimitStatus();
         this.loadVehicles();
+        this.generatePassengerAndLoaderButtons();
+        
+        // Добавляем обработчик события загрузки конфигурации
+        document.addEventListener('configLoaded', () => {
+            this.generatePassengerAndLoaderButtons();
+        });
+        
         // Транспорт будет загружен и отображен при показе шага 2
+    }
+    
+    /**
+     * Динамически генерирует кнопки выбора пассажиров и грузчиков
+     * на основе лимитов из конфигурации
+     */
+    generatePassengerAndLoaderButtons() {
+        if (!window.configManager || !window.configManager.isReady()) {
+            console.log('Config not loaded yet, skipping button generation');
+            return;
+        }
+        
+        try {
+            const limits = window.configManager.getCalculatorLimits();
+            const maxPassengers = limits.max_passengers || 5;
+            const maxLoaders = limits.max_loaders || 3;
+            
+            console.log('Generating buttons with limits:', { maxPassengers, maxLoaders });
+            
+            // Генерируем кнопки пассажиров
+            this.generateButtons('passenger', maxPassengers, 'passenger-btn');
+            
+            // Генерируем кнопки грузчиков
+            this.generateButtons('loader', maxLoaders, 'loader-btn');
+            
+        } catch (error) {
+            console.error('Error generating passenger and loader buttons:', error);
+        }
+    }
+    
+    /**
+     * Генерирует кнопки для указанного типа (пассажиры или грузчики)
+     */
+    generateButtons(type, maxCount, className) {
+        // Используем ID контейнеров
+        const containerId = type === 'passenger' ? 'passenger-buttons-container' : 'loader-buttons-container';
+        const container = document.getElementById(containerId);
+        
+        if (!container) {
+            console.error(`Container for ${type} buttons not found: ${containerId}`);
+            return;
+        }
+        
+        // Очищаем существующие кнопки
+        container.innerHTML = '';
+        
+        // Генерируем кнопки от 0 до maxCount
+        for (let i = 0; i <= maxCount; i++) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `${className} w-10 h-10 rounded border border-gray-200 flex items-center justify-center transition-transform hover:scale-110`;
+            button.dataset.value = i;
+            button.textContent = i;
+            
+            // Добавляем обработчик событий
+            if (type === 'passenger') {
+                button.addEventListener('click', () => this.selectPassengers(i));
+            } else {
+                button.addEventListener('click', () => this.selectLoaders(i));
+            }
+            
+            container.appendChild(button);
+        }
+        
+        console.log(`Generated ${maxCount + 1} ${type} buttons (0-${maxCount})`);
     }
     
     bindEvents() {
@@ -1523,6 +1595,9 @@ class CalculatorV2 {
             console.log('Step 2 shown, loading vehicles...');
             // Загружаем и отображаем все доступные ТС при показе второго шага
             this.loadAndDisplayVehicles();
+            
+            // Генерируем кнопки пассажиров и грузчиков на основе конфига
+            this.generatePassengerAndLoaderButtons();
         } else {
             console.error('Step2 or newsCarousel elements not found!');
         }
@@ -1935,6 +2010,9 @@ class CalculatorV2 {
         document.querySelectorAll('.passenger-btn, .loader-btn').forEach(btn => {
             btn.classList.remove('bg-primary', 'text-white');
         });
+        
+        // Пересоздаем кнопки пассажиров и грузчиков на основе конфига
+        this.generatePassengerAndLoaderButtons();
         
         // Сбрасываем радиокнопки
         document.querySelectorAll('input[type="radio"]').forEach(radio => {
