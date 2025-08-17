@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   
@@ -69,11 +69,18 @@
               >
             </a>
             
-            <!-- Добавленный текстовый блок -->
-            <div class="ml-3 border-l border-gray-200 dark:border-gray-700 pl-3">
-              <div class="font-bold text-xl text-gray-800 dark:text-white tracking-tight">Проф.Экипаж</div>
-              <div class="text-sm text-gray-600 dark:text-gray-300 italic mt-1">
+            <!-- Улучшенный текстовый блок -->
+            <div class="ml-4 border-l-2 border-primary/30 dark:border-primary/50 pl-4">
+              <div class="font-extrabold text-2xl md:text-3xl text-gray-800 dark:text-white tracking-tight leading-tight">
+                <span class="bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+                  Проф.Экипаж
+                </span>
+              </div>
+              <div class="text-sm md:text-base text-gray-900 dark:text-gray-100 font-semibold mt-1 leading-tight">
                 Грузоперевозки с профессиональным подходом
+              </div>
+              <div class="text-sm md:text-base text-gray-800 dark:text-gray-200 mt-1 font-bold">
+                Надежно • Быстро • Качественно
               </div>
             </div>
           </div>
@@ -89,40 +96,65 @@
             -->
             <button
               id="callbackRequestBtn"
-              class="bg-white border border-gray-200 text-gray-800 px-5 py-2 rounded-button flex items-center whitespace-nowrap text-sm transition-transform hover:scale-105"
+              class="bg-gradient-to-r from-primary to-orange-600 hover:from-orange-600 hover:to-primary border-0 text-white px-6 py-3 rounded-xl flex items-center whitespace-nowrap text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
-              <i class="ri-phone-line mr-1"></i>
+              <i class="ri-phone-line mr-2 text-base"></i>
               <span>Перезвоним за 8 сек</span>
             </button>
             
             <!-- Кнопка переключения темы -->
             <button
               id="themeToggle"
-              class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+              class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gradient-to-r hover:from-primary/10 hover:to-orange-500/10 dark:hover:from-primary/20 dark:hover:to-orange-500/20 transition-all duration-300 hover:scale-110 shadow-sm hover:shadow-md"
             >
-              <i class="ri-sun-line dark:hidden text-sm transition-transform hover:scale-125"></i>
-              <i class="ri-moon-line hidden dark:block text-sm transition-transform hover:scale-125"></i>
+              <i class="ri-sun-line dark:hidden text-base text-gray-700 transition-all duration-300 hover:scale-125 hover:text-primary"></i>
+              <i class="ri-moon-line hidden dark:block text-base text-gray-700 dark:text-gray-300 transition-all duration-300 hover:scale-125 hover:text-primary"></i>
             </button>
             
-            <div class="hidden md:flex flex-col items-end ml-1">
-              <div class="font-bold text-gray-800 whitespace-nowrap text-xl">8 (800) 555 3535</div>
-              <div class="text-sm text-gray-600 whitespace-nowrap">круглосуточно</div>
+            <!-- Мобильная версия номера -->
+            <div class="md:hidden flex flex-col items-end ml-2">
+              <div class="font-bold text-gray-800 dark:text-white whitespace-nowrap text-lg tracking-tight">
+                <span class="bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+                  8 (800) 555 3535
+                </span>
+              </div>
+              <div class="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                <i class="ri-time-line mr-1"></i>
+                круглосуточно
+              </div>
+            </div>
+            
+            <!-- Десктопная версия номера -->
+            <div class="hidden md:flex flex-col items-end ml-3">
+              <div class="font-extrabold text-gray-800 dark:text-white whitespace-nowrap text-xl md:text-2xl tracking-tight">
+                <span class="bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+                  8 (800) 555 3535
+                </span>
+              </div>
+              <div class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap font-medium">
+                <i class="ri-time-line mr-1"></i>
+                круглосуточно
+              </div>
             </div>
           </div>
         </div>
         
         <!-- Sub Navigation -->
-        <div class="border-t border-gray-100 mt-1">
+        <div class="border-t border-gray-100 dark:border-gray-700 mt-3 pt-3">
           <nav class="flex justify-between overflow-hidden">
-            <div class="flex">
+            <div class="flex space-x-1">
               <!-- Калькулятор -->
-              <a href="#" class="px-3 py-2 text-gray-700 calculator-tab active-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
-                >Калькулятор</a
-              >
+              <a href="#" class="px-4 py-3 text-gray-700 dark:text-gray-300 calculator-tab active-tab text-sm font-semibold transition-all duration-300 hover:text-primary hover:bg-gradient-to-r hover:from-primary/10 hover:to-orange-500/10 rounded-lg relative overflow-hidden group"
+                >
+                <span class="relative z-10">Калькулятор</span>
+                <div class="absolute inset-0 bg-gradient-to-r from-primary/20 to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </a>
               <!-- Работы -->
-              <a href="#" class="px-3 py-2 text-gray-700 works-tab text-sm transition-colors duration-300 hover:text-primary hover:bg-primary/10 rounded-md"
-                >Работы</a
-              >
+              <a href="#" class="px-4 py-3 text-gray-700 dark:text-gray-300 works-tab text-sm font-semibold transition-all duration-300 hover:text-primary hover:bg-gradient-to-r hover:from-primary/10 hover:to-orange-500/10 rounded-lg relative overflow-hidden group"
+                >
+                <span class="relative z-10">Работы</span>
+                <div class="absolute inset-0 bg-gradient-to-r from-primary/20 to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </a>
             </div>
             <!-- Меню (временно скрыто)
             <button

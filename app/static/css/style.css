@@ -98,6 +98,16 @@
 /* Общие стили с использованием CSS переменных */
 body {
   position: relative;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Стили для хедера с использованием Roboto */
+header {
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Убеждаемся, что в светлой теме нет белого текста */
+body {
   min-height: 100vh;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
@@ -237,9 +247,27 @@ input[type="radio"]:checked + span > span {
 /* Стили компонентов */
 header {
   background-color: var(--header-bg);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(15px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-bottom: 1px solid var(--header-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.dark header {
+  background-color: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Убеждаемся, что в светлой теме нет белого текста */
+header .text-white {
+  color: var(--color-text-primary) !important;
+}
+
+header .dark .text-white {
+  color: white !important;
 }
 
 .bg-white {
@@ -342,18 +370,23 @@ footer input::placeholder {
 
 .active-tab {
   position: relative;
-  font-weight: 600;
-  color: var(--color-primary);
+  font-weight: 700;
+  color: white !important;
+  background: linear-gradient(135deg, var(--color-primary), #f97316) !important;
+  box-shadow: 0 4px 12px rgba(212, 106, 0, 0.3);
+  transform: translateY(-1px);
 }
 
 .active-tab::after {
   content: '';
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: var(--color-primary);
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-primary), #f97316);
+  border-radius: 2px;
 }
 
 .gallery-item {
@@ -401,6 +434,21 @@ footer input::placeholder {
 
 .logo-container {
   height: 5rem;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1));
+}
+
+.logo-container:hover {
+  filter: drop-shadow(0 4px 12px rgba(212, 106, 0, 0.2));
+  transform: scale(1.05);
+}
+
+.dark .logo-container {
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
+
+.dark .logo-container:hover {
+  filter: drop-shadow(0 4px 12px rgba(255, 255, 255, 0.1));
 }
 
 header > div:first-child {
@@ -442,6 +490,25 @@ body, button, input, select, textarea {
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Fallback для браузеров без поддержки градиентов */
+@supports not (background: linear-gradient(to right, #d46a00, #f97316)) {
+  .bg-gradient-to-r {
+    background-color: var(--color-primary) !important;
+  }
+  
+  .bg-gradient-to-r.from-primary.to-orange-600 {
+    background-color: var(--color-primary) !important;
+  }
+  
+  .bg-gradient-to-r.from-gray-700.to-gray-500 {
+    background-color: #374151 !important;
+  }
+  
+  .dark .bg-gradient-to-r.from-gray-300.to-gray-400 {
+    background-color: #d1d5db !important;
+  }
 }
 
 .passenger-btn:hover, .loader-btn:hover {
@@ -607,6 +674,23 @@ body, button, input, select, textarea {
 
 /* Адаптивность для карусели */
 @media (max-width: 768px) {
+  /* Адаптивные стили для хедера */
+  header .logo-container {
+    height: 4rem;
+  }
+  
+  header .text-2xl {
+    font-size: 1.25rem;
+  }
+  
+  header .text-xl {
+    font-size: 1.125rem;
+  }
+  
+  header .text-base {
+    font-size: 0.875rem;
+  }
+  
   .vehicles-carousel {
     height: 140px;
   }
