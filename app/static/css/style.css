@@ -264,8 +264,122 @@ header .text-white {
   color: var(--color-text-primary) !important;
 }
 
+/* Исключение для заголовка компании - всегда белый с черной обводкой */
+header .company-title-main.text-white {
+  color: #ffffff !important;
+}
+
 header .dark .text-white {
   color: white !important;
+}
+
+/* Стили для названия компании */
+.company-title {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  color: #000000;
+  text-shadow: 
+    -1px -1px 0 #d46a00,
+    1px -1px 0 #d46a00,
+    -1px 1px 0 #d46a00,
+    1px 1px 0 #d46a00,
+    2px 2px 4px rgba(212, 106, 0, 0.3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dark .company-title {
+  color: #ffffff;
+  text-shadow: 
+    -1px -1px 0 #d46a00,
+    1px -1px 0 #d46a00,
+    -1px 1px 0 #d46a00,
+    1px 1px 0 #d46a00,
+    2px 2px 4px rgba(212, 106, 0, 0.5);
+}
+
+/* Новые стили для заголовка */
+.company-title-main {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 900;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  color: #ffffff !important; /* White color for GRUZOPEREVOZKI */
+  text-shadow:
+    -0.5px -0.5px 0 #000000,
+    0.5px -0.5px 0 #000000,
+    -0.5px 0.5px 0 #000000,
+    0.5px 0.5px 0 #000000; /* Thin black outline for better visibility */
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: -0.5rem; /* Уменьшаем расстояние между текстами */
+}
+
+.company-title-sub {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: #f8a918 !important; /* Orange color for PROF. EKIPAZH */
+  text-shadow:
+    -0.5px -0.5px 0 #000000,
+    0.5px -0.5px 0 #000000,
+    -0.5px 0.5px 0 #000000,
+    0.5px 0.5px 0 #000000; /* Thin black outline for better visibility */
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: -0.5rem;
+}
+
+/* Убеждаемся, что заголовок остается белым в темной теме */
+.dark .company-title-main {
+  color: #ffffff !important;
+}
+
+/* Убеждаемся, что подзаголовок остается оранжевым */
+.company-title-sub {
+  color: #f8a918 !important;
+}
+
+/* Убеждаемся, что подзаголовок остается оранжевым в темной теме */
+.dark .company-title-sub {
+  color: #f8a918 !important;
+}
+
+/* Стили для списка услуг - уменьшенное расстояние между элементами */
+.services-list > div {
+  margin-bottom: 0.1rem !important;
+  line-height: 1.1 !important;
+  text-shadow:
+    -0.5px -0.5px 0 #000000,
+    0.5px -0.5px 0 #000000,
+    -0.5px 0.5px 0 #000000,
+    0.5px 0.5px 0 #000000; /* Thin black outline for better visibility */
+}
+
+.services-list > div:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (min-width: 768px) {
+  .company-title-main {
+    font-size: 1.75rem;
+  }
+  
+  .company-title-sub {
+    font-size: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .company-title-main {
+    font-size: 2rem;
+  }
+  
+  .company-title-sub {
+    font-size: 1.75rem;
+  }
 }
 
 .bg-white {
