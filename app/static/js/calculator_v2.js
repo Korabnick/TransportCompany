@@ -1306,7 +1306,13 @@ class CalculatorV2 {
         if (this.selectedVehicle) {
             const durationLimits = this.getDurationLimits();
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
-            vehicleCost = this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * durationHours);
+            
+            // Получаем минимальную длительность из конфигурации
+            const minDurationHours = window.configManager.getCalculatorLimits().min_duration_hours || 1;
+            
+            // Базовая цена + почасовая цена только для часов, превышающих минимальную длительность
+            const extraHours = Math.max(0, durationHours - minDurationHours);
+            vehicleCost = this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * extraHours);
             step2Cost += vehicleCost;
         }
         
@@ -1478,9 +1484,14 @@ class CalculatorV2 {
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
             
             // Расчет стоимости транспорта
-            const vehicleCost = this.selectedVehicle ?
-                this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * durationHours) :
-                0;
+            const vehicleCost = this.selectedVehicle ? (() => {
+                // Получаем минимальную длительность из конфигурации
+                const minDurationHours = window.configManager.getCalculatorLimits().min_duration_hours || 1;
+                
+                // Базовая цена + почасовая цена только для часов, превышающих минимальную длительность
+                const extraHours = Math.max(0, durationHours - minDurationHours);
+                return this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * extraHours);
+            })() : 0;
             
             // Расчет стоимости грузчиков
             const loadersCost = (this.calculationData.step2.loaders || 0) * 500 * durationHours;

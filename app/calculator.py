@@ -277,8 +277,14 @@ class CalculatorServiceV2:
         # Стоимость транспорта
         vehicle_cost = 0
         if selected_vehicle:
+            # Получаем минимальную длительность из конфигурации
+            limits = config_manager.get_calculator_limits()
+            min_duration_hours = limits.get('min_duration_hours', 1)
+            
+            # Базовая цена + почасовая цена только для часов, превышающих минимальную длительность
+            extra_hours = max(0, duration_hours - min_duration_hours)
             vehicle_cost = selected_vehicle.base_price + (
-                selected_vehicle.price_per_hour * duration_hours
+                selected_vehicle.price_per_hour * extra_hours
             )
         
         # Стоимость грузчиков

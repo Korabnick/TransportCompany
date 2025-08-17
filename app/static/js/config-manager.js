@@ -135,7 +135,13 @@ class ConfigManager {
         const vehicle = this.getVehicleById(vehicleId);
         if (!vehicle) return 0;
         
-        return vehicle.base_price + (vehicle.price_per_hour * durationHours);
+        // Получаем минимальную длительность из конфигурации
+        const limits = this.getCalculatorLimits();
+        const minDurationHours = limits.min_duration_hours || 1;
+        
+        // Базовая цена + почасовая цена только для часов, превышающих минимальную длительность
+        const extraHours = Math.max(0, durationHours - minDurationHours);
+        return vehicle.base_price + (vehicle.price_per_hour * extraHours);
     }
     
     // Проверка лимитов
