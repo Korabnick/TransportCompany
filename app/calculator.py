@@ -620,8 +620,20 @@ class CalculatorServiceV2:
         
         # Стоимость грузчиков
         pricing = config_manager.get_pricing()
-        loader_price_per_hour = pricing['loader_price_per_hour']
+        loader_price_per_hour = pricing.get('loader_price_per_hour', 750.0)
         loaders_cost = loaders * loader_price_per_hour * duration_hours
+        
+        # Логируем расчёт стоимости грузчиков
+        try:
+            if hasattr(current_app, 'logger'):
+                current_app.logger.info(
+                    f"Loaders cost calculation: loaders={loaders}, "
+                    f"price_per_hour={loader_price_per_hour}, "
+                    f"duration_hours={duration_hours}, "
+                    f"total_cost={loaders_cost}"
+                )
+        except AttributeError:
+            pass
         
         # Итоговая стоимость
         total = base_cost + vehicle_cost + loaders_cost + additional_services_cost

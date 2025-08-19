@@ -74,21 +74,15 @@
             </a>
             
             <!-- Улучшенный текстовый блок -->
-            <div class="ml-4 border-l-2 border-primary/30 dark:border-primary/50 pl-4">
+            <div class="ml-4 border-l-2 bo  rder-primary/30 dark:border-primary/50 pl-4">
               <div class="font-extrabold text-2xl md:text-3xl tracking-tight leading-tight">
                 <div class="company-title-main text-white">
                   ГРУЗОПЕРЕВОЗКИ
                 </div>
-                <div class="company-title-sub">
+                <div class="company-title-sub" style="color: #f8a918;">
                   ПРОФ. ЭКИПАЖ
                 </div>
               </div>
-              <div class="text-xs md:text-sm font-bold mt-2 leading-tight services-list" style="color: #f8a918;">
-              <div>ПЕРЕЕЗДЫ С ГРУЗЧИКАМИ</div>
-              <div>РАЗБОРКА/СБОРКА МЕБЕЛИ</div>
-              <div>УПАКОВКА</div>
-              <div>МЕЖГОРОД</div>
-            </div>
             </div>
           </div>
           
@@ -547,6 +541,25 @@
               <div class="flex justify-between text-sm items-center">
                 <span class="text-gray-600 font-medium">Стоимость грузчиков</span>
                 <span id="loadersCost" class="text-gray-800 font-semibold">0 ₽</span>
+              </div>
+              <!-- Детализация стоимости грузчиков -->
+              <div id="loadersBreakdown" class="hidden text-xs text-gray-500 ml-4 mb-2">
+                <div class="flex justify-between">
+                  <span>Грузчики:</span>
+                  <span id="loadersCount">0</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Цена за час:</span>
+                  <span id="loaderPricePerHour">0 ₽</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Длительность:</span>
+                  <span id="loadersDuration">0 ч</span>
+                </div>
+                <div class="flex justify-between font-medium">
+                  <span>Расчёт:</span>
+                  <span id="loadersCalculation">0 ₽</span>
+                </div>
               </div>
               <div class="border-t border-gray-200 dark:border-gray-600" id="loadersSeparator"></div>
               

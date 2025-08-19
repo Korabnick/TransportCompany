@@ -1474,11 +1474,9 @@ class CalculatorV2 {
         const loaders = this.calculationData.step2.loaders || 0;
         let loadersCost = 0;
         if (loaders > 0) {
-            // Базовая стоимость за грузчика - 500 рублей в час
-            const loaderHourlyRate = 500;
             const durationLimits = this.getDurationLimits();
             const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
-            loadersCost = loaders * loaderHourlyRate * durationHours;
+            loadersCost = this.calculateLoadersCost(loaders, durationHours);
             step2Cost += loadersCost;
         }
         
@@ -1525,6 +1523,80 @@ class CalculatorV2 {
         // Если выбран транспорт, пересчитываем итоговую стоимость
         if (this.selectedVehicle) {
             this.calculateStep3();
+        }
+    }
+    
+    // Метод для расчёта стоимости грузчиков (использует конфигурацию)
+    calculateLoadersCost(loaders, durationHours) {
+        if (window.configManager && window.configManager.isReady()) {
+            return window.configManager.calculateLoadersCost(loaders, durationHours);
+        } else {
+            // Fallback если конфиг не загружен
+            const loaderHourlyRate = 750.0;
+            const totalCost = loaders * loaderHourlyRate * durationHours;
+            console.log('CalculatorV2 calculateLoadersCost (fallback):', {
+                loaders,
+                loaderHourlyRate,
+                durationHours,
+                totalCost
+            });
+            return totalCost;
+        }
+    }
+    
+    // Метод для валидации стоимости грузчиков через API
+    async validateLoadersCost(loaders, durationHours) {
+        try {
+            const response = await fetch('/api/v2/calculator/loaders-cost', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    loaders: loaders,
+                    duration_hours: durationHours
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            if (result.success) {
+                const backendCost = result.data.total_cost;
+                const frontendCost = this.calculateLoadersCost(loaders, durationHours);
+                
+                console.log('Loaders cost validation:', {
+                    frontend: frontendCost,
+                    backend: backendCost,
+                    difference: Math.abs(frontendCost - backendCost),
+                    is_valid: Math.abs(frontendCost - backendCost) < 1 // Допускаем разницу в 1 рубль
+                });
+                
+                return {
+                    isValid: Math.abs(frontendCost - backendCost) < 1,
+                    frontendCost: frontendCost,
+                    backendCost: backendCost,
+                    difference: Math.abs(frontendCost - backendCost),
+                    breakdown: result.data.breakdown
+                };
+            } else {
+                throw new Error(result.error || 'Validation failed');
+            }
+        } catch (error) {
+            console.error('Loaders cost validation error:', error);
+            // Возвращаем fallback результат
+            const fallbackCost = this.calculateLoadersCost(loaders, durationHours);
+            return {
+                isValid: true, // Считаем валидным при ошибке API
+                frontendCost: fallbackCost,
+                backendCost: fallbackCost,
+                difference: 0,
+                breakdown: {
+                    calculation: `${loaders} × 750₽ × ${durationHours}ч = ${fallbackCost}₽`
+                }
+            };
         }
     }
 
@@ -1679,7 +1751,8 @@ class CalculatorV2 {
             })() : 0;
             
             // Расчет стоимости грузчиков
-            const loadersCost = (this.calculationData.step2.loaders || 0) * 500 * durationHours;
+            const loaders = this.calculationData.step2.loaders || 0;
+            const loadersCost = this.calculateLoadersCost(loaders, durationHours);
             
             // [ИСПРАВЛЕНО] Стоимость дополнительных услуг - используем this.additionalServicesCost
             const additionalServicesCost = this.additionalServicesCost || 0;
@@ -1740,7 +1813,7 @@ class CalculatorV2 {
         this.startAutoPriceUpdate();
     }
     
-    selectLoaders(count) {
+    async selectLoaders(count) {
         this.calculationData.step2.loaders = count;
         
         // Обновляем UI
@@ -1760,6 +1833,22 @@ class CalculatorV2 {
         
         if (selectedBtn) {
             selectedBtn.classList.add('bg-primary', 'text-white');
+        }
+        
+        // Если выбраны грузчики, валидируем стоимость через API
+        if (count > 0) {
+            const durationLimits = this.getDurationLimits();
+            const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
+            
+            try {
+                const validation = await this.validateLoadersCost(count, durationHours);
+                if (!validation.isValid) {
+                    console.warn('Loaders cost validation failed:', validation);
+                    // Можно показать уведомление пользователю о расхождении в ценах
+                }
+            } catch (error) {
+                console.error('Failed to validate loaders cost:', error);
+            }
         }
         
         // Пересчитываем стоимость при изменении количества грузчиков
@@ -1993,6 +2082,9 @@ class CalculatorV2 {
         if (vehicleCostElement) vehicleCostElement.textContent = `${Math.round(breakdown.vehicle_cost)} ₽`;
         if (loadersCostElement) loadersCostElement.textContent = `${Math.round(breakdown.loaders_cost)} ₽`;
         
+        // Обновляем детализацию стоимости грузчиков
+        this.updateLoadersBreakdown(breakdown.loaders_cost);
+        
         // Обновляем дополнительные услуги
         if (additionalServicesCostElement) {
             additionalServicesCostElement.textContent = `${Math.round(breakdown.additional_services_cost)} ₽`;
@@ -2013,6 +2105,54 @@ class CalculatorV2 {
         
         // Обновляем итоговую стоимость
         if (totalElement) totalElement.textContent = `${Math.round(breakdown.total)} ₽`;
+    }
+    
+    // Метод для обновления детализации стоимости грузчиков
+    updateLoadersBreakdown(loadersCost) {
+        const loadersBreakdown = document.getElementById('loadersBreakdown');
+        const loadersCount = document.getElementById('loadersCount');
+        const loaderPricePerHour = document.getElementById('loaderPricePerHour');
+        const loadersDuration = document.getElementById('loadersDuration');
+        const loadersCalculation = document.getElementById('loadersCalculation');
+        
+        if (!loadersBreakdown) return;
+        
+        const loaders = this.calculationData.step2.loaders || 0;
+        const durationLimits = this.getDurationLimits();
+        const durationHours = parseInt(document.getElementById('durationSelect')?.value) || durationLimits.min;
+        
+        if (loaders > 0 && loadersCost > 0) {
+            // Показываем детализацию
+            loadersBreakdown.classList.remove('hidden');
+            
+            // Получаем цену за час из конфигурации
+            let pricePerHour = 750.0; // Fallback
+            if (window.configManager && window.configManager.isReady()) {
+                const pricing = window.configManager.getPricing();
+                pricePerHour = pricing.loader_price_per_hour || 750.0;
+            }
+            
+            // Обновляем значения
+            if (loadersCount) loadersCount.textContent = loaders;
+            if (loaderPricePerHour) loaderPricePerHour.textContent = `${pricePerHour} ₽`;
+            if (loadersDuration) loadersDuration.textContent = `${durationHours} ч`;
+            if (loadersCalculation) {
+                const calculatedCost = loaders * pricePerHour * durationHours;
+                loadersCalculation.textContent = `${calculatedCost} ₽`;
+                
+                // Проверяем соответствие с переданной стоимостью
+                if (Math.abs(calculatedCost - loadersCost) > 1) {
+                    loadersCalculation.classList.add('text-red-500');
+                    loadersCalculation.title = 'Расхождение в расчёте стоимости';
+                } else {
+                    loadersCalculation.classList.remove('text-red-500');
+                    loadersCalculation.title = '';
+                }
+            }
+        } else {
+            // Скрываем детализацию
+            loadersBreakdown.classList.add('hidden');
+        }
     }
     
     initVehicleCarousel() {

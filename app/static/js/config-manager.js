@@ -163,8 +163,17 @@ class ConfigManager {
         const pricing = this.getPricing();
         if (!pricing) return 0;
         
-        const loaderPricePerHour = pricing.loader_price_per_hour || 500.0;
-        return loaders * loaderPricePerHour * durationHours;
+        const loaderPricePerHour = pricing.loader_price_per_hour || 750.0;
+        const totalCost = loaders * loaderPricePerHour * durationHours;
+        
+        console.log('ConfigManager calculateLoadersCost:', {
+            loaders,
+            loaderPricePerHour,
+            durationHours,
+            totalCost
+        });
+        
+        return totalCost;
     }
     
     calculateVehicleCost(vehicleId, durationHours) {

@@ -1587,3 +1587,61 @@ def api_reload_config():
     except Exception as e:
         app.logger.error(f"Reload config error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/calculator/loaders-cost', methods=['POST'])
+@rate_limit(max_requests=50, window_seconds=60)
+def api_calculate_loaders_cost():
+    """API для расчёта стоимости грузчиков"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Извлечение данных
+        try:
+            loaders = int(data.get('loaders', 0))
+        except (ValueError, TypeError):
+            loaders = 0
+            
+        try:
+            duration_hours = int(data.get('duration_hours', 1))
+        except (ValueError, TypeError):
+            duration_hours = 1
+        
+        # Валидация
+        if loaders < 0:
+            return jsonify({'error': 'Loaders count cannot be negative'}), 400
+        
+        if duration_hours < 1:
+            return jsonify({'error': 'Duration must be at least 1 hour'}), 400
+        
+        # Получаем цену за грузчика в час из конфигурации
+        pricing = config_manager.get_pricing()
+        loader_price_per_hour = pricing.get('loader_price_per_hour', 750.0)
+        
+        # Рассчитываем стоимость
+        total_cost = loaders * loader_price_per_hour * duration_hours
+        
+        # Логируем расчёт
+        app.logger.info(f"Loaders cost calculation: {loaders} loaders, {duration_hours}h, {loader_price_per_hour}₽/h, total: {total_cost}₽")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'loaders': loaders,
+                'duration_hours': duration_hours,
+                'loader_price_per_hour': loader_price_per_hour,
+                'total_cost': total_cost,
+                'breakdown': {
+                    'loaders_count': loaders,
+                    'price_per_hour': loader_price_per_hour,
+                    'duration_hours': duration_hours,
+                    'calculation': f"{loaders} × {loader_price_per_hour}₽ × {duration_hours}ч = {total_cost}₽"
+                }
+            }
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Loaders cost calculation error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
