@@ -1,6 +1,6 @@
 from flask import Response, render_template, request, jsonify
 from app import app, metrics, cache
-from app.calculator import CalculatorServiceV2, rate_limit, get_client_id
+from app.calculator import CalculatorServiceV2, ZoneDistanceService, rate_limit, get_client_id
 from app.models import (
     RouteRequest, TimeRequest, VehicleRequest, BodyType, 
     VehicleDatabase, CalculationResult
@@ -411,6 +411,80 @@ def api_get_vehicle(vehicle_id: int):
         app.logger.error(f"Get vehicle error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/v2/calculator/zone-analysis', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=60)
+def api_zone_analysis():
+    """API для анализа маршрута с определением зон"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        from_address = data.get('from_address', '').strip()
+        to_address = data.get('to_address', '').strip()
+        
+        if not from_address or not to_address:
+            return jsonify({'error': 'From and to addresses are required'}), 400
+        
+        # Получаем анализ маршрута с зонами
+        route_analysis = ZoneDistanceService.get_distance_with_zones(from_address, to_address)
+        
+        app.logger.info(f"Zone analysis: {from_address} -> {to_address}, type: {route_analysis['route_type']}")
+        
+        return jsonify({
+            'success': True,
+            'data': route_analysis,
+            'client_id': get_client_id()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Zone analysis error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/calculator/zone-pricing', methods=['POST'])
+@rate_limit(max_requests=30, window_seconds=60)
+def api_zone_pricing():
+    """API для расчёта стоимости с учётом зон"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        from_address = data.get('from_address', '').strip()
+        to_address = data.get('to_address', '').strip()
+        duration_hours = data.get('duration_hours', 1)
+        urgent_pickup = data.get('urgent_pickup', False)
+        
+        if not from_address or not to_address:
+            return jsonify({'error': 'From and to addresses are required'}), 400
+        
+        # Получаем анализ маршрута
+        route_analysis = ZoneDistanceService.get_distance_with_zones(from_address, to_address)
+        
+        # Рассчитываем стоимость
+        pricing_result = ZoneDistanceService.calculate_route_price_with_zones(
+            route_analysis,
+            duration_hours,
+            urgent_pickup
+        )
+        
+        app.logger.info(f"Zone pricing: {from_address} -> {to_address}, total: {pricing_result['total']}")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'route_analysis': route_analysis,
+                'pricing': pricing_result
+            },
+            'client_id': get_client_id()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Zone pricing error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/api/v2/calculator/rate-limit-status', methods=['GET'])
 def api_rate_limit_status():
     """API для проверки статуса ограничения запросов"""
@@ -480,6 +554,7 @@ def api_proxy_osrm():
         profile = request.args.get('profile', 'driving')
         overview = request.args.get('overview', 'false')
         steps = request.args.get('steps', 'false')
+        geometries = request.args.get('geometries')  # geojson|polyline|polyline6
         
         if not coordinates:
             return jsonify({'error': 'Coordinates parameter is required'}), 400
@@ -492,6 +567,8 @@ def api_proxy_osrm():
             'overview': overview,
             'steps': steps
         }
+        if geometries:
+            params['geometries'] = geometries
         
         # Выполняем запрос к OSRM API
         response = requests.get(osrm_url, params=params, timeout=10)
