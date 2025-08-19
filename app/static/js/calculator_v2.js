@@ -27,6 +27,159 @@ class CalculatorV2 {
         this.init();
     }
     
+    // Определение зоны для адреса (приближённо, согласовано с backend логикой)
+    determineZone(address, coords) {
+        try {
+            const pricing = window.configManager?.getPricing?.() || {};
+            const zone = pricing.zone_detection || {};
+            const cityCenter = zone.city_center || { lat: 59.9311, lng: 30.3609 };
+            const cityRadius = Number(zone.city_radius_km) || 32.0;
+
+            const lower = (address || '').toLowerCase();
+            const keywords = (zone.kad_keywords || []).map(k => String(k).toLowerCase());
+            if (keywords.some(k => lower.includes(k))) {
+                return 'outside';
+            }
+
+            if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+                const dist = this.haversineKm(coords.lat, coords.lon, cityCenter.lat, cityCenter.lng);
+                return dist <= cityRadius ? 'city' : 'outside';
+            }
+        } catch (e) {
+            console.warn('determineZone fallback used', e);
+        }
+        return 'city';
+    }
+
+    // Расчет дистанции между двумя координатами
+    haversineKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const toRad = (deg) => deg * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    // Формирование зонального анализа по типам маршрута (упрощенно как на backend)
+    buildRouteAnalysis(totalDistance, fromZone, toZone) {
+        let routeType = 'mixed';
+        let cityDistance = 0;
+        let outsideDistance = 0;
+        let kad = false;
+
+        if (fromZone === 'city' && toZone === 'city') {
+            routeType = 'city_only';
+            cityDistance = totalDistance;
+            outsideDistance = 0;
+            kad = false;
+        } else if (fromZone === 'outside' && toZone === 'outside') {
+            routeType = 'outside_only';
+            cityDistance = 0;
+            outsideDistance = totalDistance;
+            kad = true;
+        } else {
+            routeType = 'mixed';
+            // Приближенно как на сервере: 60% город, 40% за КАД
+            cityDistance = Math.round(totalDistance * 0.6 * 10) / 10;
+            outsideDistance = Math.round(totalDistance * 0.4 * 10) / 10;
+            kad = true;
+        }
+
+        return {
+            total_distance: totalDistance,
+            city_distance: cityDistance,
+            outside_distance: outsideDistance,
+            from_zone: fromZone,
+            to_zone: toZone,
+            route_type: routeType,
+            kad_toll_applied: kad
+        };
+    }
+
+    // Загрузка полигона КАД (GeoJSON)
+    async loadKadPolygon() {
+        try {
+            if (this._kadPolygonGeoJson) return this._kadPolygonGeoJson;
+            const resp = await fetch('/api/v2/config/kad-polygon');
+            const data = await resp.json();
+            if (data && data.success && data.data) {
+                this._kadPolygonGeoJson = data.data;
+                return this._kadPolygonGeoJson;
+            }
+        } catch (e) {
+            console.warn('Failed to load KAD polygon:', e);
+        }
+        return null;
+    }
+
+    // Запрос геометрии маршрута у OSRM через прокси
+    async fetchOsrmGeometry(from, to) {
+        try {
+            const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+            const url = `/api/v2/proxy/osrm?profile=driving&coordinates=${encodeURIComponent(coords)}&overview=full&geometries=geojson`;
+            const resp = await fetch(url);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.type === 'LineString') {
+                return { coordinates: data.routes[0].geometry.coordinates }; // [[lon, lat], ...]
+            }
+        } catch (e) {
+            console.warn('fetchOsrmGeometry failed:', e);
+        }
+        return null;
+    }
+
+    // Простой алгоритм point-in-polygon (ray casting) для одного контура
+    pointInPolygon(lon, lat, polygonRing) {
+        let inside = false;
+        for (let i = 0, j = polygonRing.length - 1; i < polygonRing.length; j = i++) {
+            const xi = polygonRing[i][0], yi = polygonRing[i][1];
+            const xj = polygonRing[j][0], yj = polygonRing[j][1];
+            const intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    // Сегментация маршрута по полигону КАД
+    segmentByPolygon(lineCoords, kadGeoJson) {
+        const features = kadGeoJson.features || [];
+        if (!features.length) return null;
+        const polygon = features[0].geometry;
+        if (!polygon || polygon.type !== 'Polygon' || !polygon.coordinates || !polygon.coordinates.length) return null;
+        const ring = polygon.coordinates[0]; // [[lon, lat], ...]
+
+        let cityKm = 0, outsideKm = 0, totalKm = 0;
+        for (let i = 0; i < lineCoords.length - 1; i++) {
+            const [lon1, lat1] = lineCoords[i];
+            const [lon2, lat2] = lineCoords[i + 1];
+            const segKm = this.haversineKm(lat1, lon1, lat2, lon2);
+            totalKm += segKm;
+            const midLon = (lon1 + lon2) / 2;
+            const midLat = (lat1 + lat2) / 2;
+            const inside = this.pointInPolygon(midLon, midLat, ring);
+            if (inside) cityKm += segKm; else outsideKm += segKm;
+        }
+
+        const total = Math.round(totalKm * 10) / 10;
+        const city = Math.round(cityKm * 10) / 10;
+        const outside = Math.round(outsideKm * 10) / 10;
+        let routeType = 'city_only';
+        if (city > 0 && outside > 0) routeType = 'mixed';
+        else if (outside > 0 && city === 0) routeType = 'outside_only';
+        return {
+            total_distance: total,
+            city_distance: city,
+            outside_distance: outside,
+            from_zone: city > 0 ? 'city' : 'outside',
+            to_zone: outside > 0 ? 'outside' : 'city',
+            route_type: routeType,
+            kad_toll_applied: outside > 0
+        };
+    }
+
     async init() {
         console.log('CalculatorV2 init called');
         
@@ -861,9 +1014,34 @@ class CalculatorV2 {
             // Получаем значение pickup_time из поля ввода
             const pickupTimeInput = document.getElementById('pickupTime');
             const pickupTime = pickupTimeInput?.value || '';
-            
+
+            // Реальная посегментная разбивка как на бэкенде (через OSRM + полигон КАД)
+            let routeAnalysis = null;
+            try {
+                const kadPolygon = await this.loadKadPolygon();
+                if (kadPolygon && routeCoordinates[0] && routeCoordinates[routeCoordinates.length - 1]) {
+                    const from = routeCoordinates[0];
+                    const to = routeCoordinates[routeCoordinates.length - 1];
+                    const osrm = await this.fetchOsrmGeometry(from, to);
+                    if (osrm && osrm.coordinates && osrm.coordinates.length >= 2) {
+                        routeAnalysis = this.segmentByPolygon(osrm.coordinates, kadPolygon);
+                    }
+                }
+            } catch (e) { console.warn('Frontend segmentation failed, fallback used:', e); }
+            if (!routeAnalysis) {
+                const fromZone = this.determineZone(fromAddress, routeCoordinates[0] || null);
+                const toZone = this.determineZone(toAddress, routeCoordinates[routeCoordinates.length - 1] || null);
+                routeAnalysis = this.buildRouteAnalysis(roundedTotalDistance, fromZone, toZone);
+            }
+
+            // Предварительный расчёт цены по зонам на фронте (по конфигу)
+            let prelim = null;
+            if (window.configManager && window.configManager.isReady()) {
+                prelim = window.configManager.calculateRoutePriceWithZones(routeAnalysis, durationHours, urgentPickup);
+            }
+
             const routeData = {
-                distance: roundedTotalDistance,  // [НОВОЕ] Используем округлённое расстояние
+                distance: routeAnalysis.total_distance ?? roundedTotalDistance,
                 duration: totalDuration,
                 from_address: fromAddress,
                 to_address: toAddress,
@@ -872,7 +1050,14 @@ class CalculatorV2 {
                 duration_hours: durationHours,
                 urgent_pickup: urgentPickup,
                 pickup_time: pickupTime,
-                total: totalCost
+                // Если конфиг недоступен, используем прежний totalCost (single-rate) как резерв
+                total: prelim ? prelim.total : totalCost,
+                distance_cost: prelim ? ((prelim.city_cost || 0) + (prelim.outside_cost || 0)) : undefined,
+                duration_cost: prelim ? prelim.duration_cost : undefined,
+                base_total_cost: prelim ? prelim.base_total_cost : undefined,
+                urgent_multiplier: prelim ? prelim.urgent_multiplier : undefined,
+                kad_cost: prelim ? prelim.kad_cost : 0,
+                route_analysis: routeAnalysis
             };
             
             this.calculationData.step1 = routeData;
@@ -1634,6 +1819,72 @@ class CalculatorV2 {
         // Показываем блок с результатами всегда
         if (resultsBlock) {
             resultsBlock.classList.remove('hidden');
+        }
+        
+        // Отображаем зональную информацию, если доступна
+        this.updateZoneDisplay(data);
+    }
+    
+    updateZoneDisplay(data) {
+        // Создаем или обновляем элемент для отображения зональной информации
+        let zoneInfoElement = document.getElementById('zoneInfo');
+        
+        if (!zoneInfoElement) {
+            zoneInfoElement = document.createElement('div');
+            zoneInfoElement.id = 'zoneInfo';
+            zoneInfoElement.className = 'mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg';
+            
+            // Вставляем после элемента с результатами шага 1
+            const resultsBlock = document.getElementById('step1Results');
+            if (resultsBlock) {
+                resultsBlock.appendChild(zoneInfoElement);
+            }
+        }
+        
+        // Проверяем, есть ли информация о зонах
+        if (data.route_analysis) {
+            const analysis = data.route_analysis;
+            const routeType = analysis.route_type;
+            
+            let zoneText = '';
+            let zoneClass = '';
+            
+            switch (routeType) {
+                case 'city_only':
+                    zoneText = `🚗 Маршрут по городу (${analysis.city_distance} км)`;
+                    zoneClass = 'text-green-700 bg-green-50 border-green-200';
+                    break;
+                case 'outside_only':
+                    zoneText = `🛣️ Маршрут за КАД (${analysis.outside_distance} км)`;
+                    zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
+                    break;
+                case 'mixed':
+                    zoneText = `🔄 Смешанный маршрут: ${analysis.city_distance} км по городу + ${analysis.outside_distance} км за КАД`;
+                    zoneClass = 'text-blue-700 bg-blue-50 border-blue-200';
+                    break;
+                default:
+                    zoneText = `📍 Общее расстояние: ${analysis.total_distance} км`;
+                    zoneClass = 'text-gray-700 bg-gray-50 border-gray-200';
+            }
+            
+            // Добавляем информацию о стоимости КАД
+            if (analysis.kad_toll_applied && data.kad_cost > 0) {
+                zoneText += ` + ${data.kad_cost} ₽ (проезд по КАД)`;
+            }
+            
+            zoneInfoElement.className = `mt-3 p-3 ${zoneClass} rounded-lg`;
+            zoneInfoElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium">${zoneText}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            zoneInfoElement.style.display = 'block';
+        } else {
+            // Скрываем элемент, если нет зональной информации
+            zoneInfoElement.style.display = 'none';
         }
     }
     
@@ -2448,6 +2699,26 @@ class CalculatorV2 {
                 this.updateBackendPrice({
                     breakdown: response.breakdown
                 });
+            }
+
+            // Дополнительно обновляем шаг 1 из backend, чтобы синхронизировать 
+            // дистанции по зонам и цену, показанную на первом шаге
+            try {
+                const step1Req = {
+                    from_address: calculationData.from_address,
+                    to_address: calculationData.to_address,
+                    pickup_time: calculationData.pickup_time,
+                    duration_hours: calculationData.duration_hours,
+                    urgent_pickup: calculationData.urgent_pickup
+                };
+                const step1Resp = await this.makeRequest('/api/v2/calculator/step1', 'POST', step1Req);
+                if (step1Resp && step1Resp.success && step1Resp.data) {
+                    this.calculationData.step1 = step1Resp.data;
+                    this.updateStep1Display(step1Resp.data);
+                    this.updateRouteCostDisplay();
+                }
+            } catch (e) {
+                console.warn('Не удалось синхронизировать шаг 1 с backend:', e);
             }
             
         } catch (error) {

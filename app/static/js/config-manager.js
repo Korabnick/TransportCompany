@@ -122,6 +122,42 @@ class ConfigManager {
             total: total
         };
     }
+
+    // Новый расчёт по зонам – синхронизирован с backend ZoneDistanceService
+    calculateRoutePriceWithZones(routeAnalysis, durationHours, urgentPickup = false) {
+        const pricing = this.getPricing();
+        if (!pricing || !routeAnalysis) return null;
+
+        const cityCostPerKm = pricing.city_cost_per_km ?? pricing.base_cost_per_km ?? 10.0;
+        const outsideCostPerKm = pricing.outside_cost_per_km ?? pricing.base_cost_per_km ?? 10.0;
+        const durationCostPerHour = pricing.duration_cost_per_hour ?? 100.0;
+        const urgentMultiplier = urgentPickup ? (pricing.urgent_pickup_multiplier ?? 1.3) : 1.0;
+
+        const cityKm = Number(routeAnalysis.city_distance) || 0;
+        const outsideKm = Number(routeAnalysis.outside_distance) || 0;
+
+        const cityCost = cityKm * cityCostPerKm;
+        const outsideCost = outsideKm * outsideCostPerKm;
+        const durationCost = durationHours * durationCostPerHour;
+
+        let kadCost = 0;
+        if (routeAnalysis.kad_toll_applied) {
+            kadCost = pricing.kad_toll_cost ?? 0;
+        }
+
+        const baseTotalCost = cityCost + outsideCost + durationCost + kadCost;
+        const total = Math.round(baseTotalCost * urgentMultiplier);
+
+        return {
+            city_cost: cityCost,
+            outside_cost: outsideCost,
+            duration_cost: durationCost,
+            kad_cost: kadCost,
+            base_total_cost: baseTotalCost,
+            urgent_multiplier: urgentMultiplier,
+            total
+        };
+    }
     
     calculateLoadersCost(loaders, durationHours) {
         const pricing = this.getPricing();
