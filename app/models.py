@@ -32,6 +32,7 @@ class Vehicle:
     image_url: str
     description: str
     is_available: bool = True
+    min_base_duration_hours: int = 1
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,7 +49,8 @@ class Vehicle:
             'capacity': self.capacity,
             'image_url': self.image_url,
             'description': self.description,
-            'is_available': self.is_available
+            'is_available': self.is_available,
+            'min_base_duration_hours': self.min_base_duration_hours
         }
 
 @dataclass
@@ -139,7 +141,8 @@ class VehicleDatabase:
                     dimensions=vehicle_data['dimensions'],
                     capacity=vehicle_data['capacity'],
                     image_url=vehicle_data['image_url'],
-                    description=vehicle_data['description']
+                    description=vehicle_data['description'],
+                    min_base_duration_hours=vehicle_data.get('min_base_duration_hours', 1)
                 )
                 vehicles.append(vehicle)
                 

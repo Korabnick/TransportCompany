@@ -199,6 +199,12 @@ class CalculatorV2 {
         this.generatePassengerAndLoaderButtons();
         this.generateDurationOptions();
         
+        // Инициализируем слушатель изменений длительности
+        this.bindDurationChangeListener();
+        
+        // Инициализируем проверку валидности заказа
+        this.checkOrderValidity();
+        
         // Очищаем контейнер дополнительных услуг и генерируем их на основе конфига
         const additionalServicesContainer = document.getElementById('additionalServicesContainer');
         if (additionalServicesContainer) {
@@ -886,6 +892,22 @@ class CalculatorV2 {
                 this.submitOrder();
             });
         }
+        
+        // Добавляем слушатели для проверки валидности заказа
+        const customerNameInput = document.getElementById('customerName');
+        const customerPhoneInput = document.getElementById('customerPhone');
+        
+        if (customerNameInput) {
+            customerNameInput.addEventListener('input', () => {
+                this.checkOrderValidity();
+            });
+        }
+        
+        if (customerPhoneInput) {
+            customerPhoneInput.addEventListener('input', () => {
+                this.checkOrderValidity();
+            });
+        }
 
         // Инициализация маски телефона
         this.addInputMaskPhone();
@@ -1443,6 +1465,9 @@ class CalculatorV2 {
         if (this.selectedVehicle) {
             this.calculateStep3();
         }
+        
+        // Обновляем предупреждения о минимальной длительности
+        this.updateMinDurationWarnings();
     }
     
     // Метод для обновления отображения стоимости маршрута в шаге 3
@@ -1723,6 +1748,9 @@ class CalculatorV2 {
             
             this.updateVehiclesDisplay(filteredVehicles);
             
+            // Обновляем предупреждения о минимальной длительности после обновления отображения
+            this.updateMinDurationWarnings();
+            
             // Обновляем время последней активности и запускаем таймер
             this.lastUserActivity = Date.now();
             this.startAutoPriceUpdate();
@@ -1742,11 +1770,11 @@ class CalculatorV2 {
             
             // Расчет стоимости транспорта
             const vehicleCost = this.selectedVehicle ? (() => {
-                // Получаем минимальную длительность из конфигурации
-                const minDurationHours = window.configManager.getCalculatorLimits().min_duration_hours || 1;
+                // Получаем минимальную длительность для конкретного транспорта
+                const vehicleMinDuration = this.selectedVehicle.min_base_duration_hours || 1;
                 
                 // Базовая цена + почасовая цена только для часов, превышающих минимальную длительность
-                const extraHours = Math.max(0, durationHours - minDurationHours);
+                const extraHours = Math.max(0, durationHours - vehicleMinDuration);
                 return this.selectedVehicle.base_price + (this.selectedVehicle.price_per_hour * extraHours);
             })() : 0;
             
@@ -1885,6 +1913,9 @@ class CalculatorV2 {
             // Обновляем время последней активности и запускаем таймер
             this.lastUserActivity = Date.now();
             this.startAutoPriceUpdate();
+            
+            // Проверяем валидность заказа после выбора транспорта
+            this.checkOrderValidity();
         }
     }
     
@@ -2001,7 +2032,13 @@ class CalculatorV2 {
         }
         
         // Создаем слайды для карусели
-        const vehiclesHtml = vehicles.map(vehicle => `
+        const vehiclesHtml = vehicles.map(vehicle => {
+            // Проверяем минимальную длительность для транспорта
+            const vehicleMinDuration = vehicle.min_base_duration_hours || 1;
+            const currentDuration = parseInt(document.getElementById('durationSelect')?.value) || 2;
+            const needsMinDurationWarning = currentDuration < vehicleMinDuration;
+            
+            return `
             <div class="vehicle-slide min-w-full px-2">
                 <div class="vehicle-card border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-primary transition-colors bg-white shadow-sm" 
                  data-vehicle-id="${vehicle.id}">
@@ -2012,6 +2049,25 @@ class CalculatorV2 {
                                 <img src="${vehicle.image_url}" alt="${vehicle.name}" class="w-full h-full object-cover rounded-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                 <i class="ri-truck-line text-2xl text-gray-400" style="display: none;"></i>
                             </div>
+                            
+                            <!-- Информация о минимальной длительности под изображением -->
+                            ${needsMinDurationWarning ? `
+                            <div class="min-duration-info mt-2">
+                                <div class="min-duration-warning-compact">
+                                    <div class="warning-header-compact">
+                                        <i class="ri-alert-line mr-1 text-amber-500"></i>
+                                        <span class="text-xs font-medium text-amber-700">Мин. ${vehicleMinDuration}ч</span>
+                                    </div>
+                                    <button 
+                                        class="apply-min-duration-btn-compact"
+                                        data-vehicle-id="${vehicle.id}"
+                                        data-min-duration="${vehicleMinDuration}"
+                                    >
+                                        Применить
+                                    </button>
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                         
                         <!-- Информация о транспорте -->
@@ -2023,7 +2079,7 @@ class CalculatorV2 {
                                 <div class="flex items-center">
                                     <i class="ri-user-line mr-1"></i>
                                     <span>${vehicle.max_passengers + vehicle.max_loaders} чел.</span>
-                    </div>
+                                </div>
                                 <div class="flex items-center">
                                     <i class="ri-ruler-2-line mr-1"></i>
                                     <span>Высота: ${vehicle.dimensions.height}м</span>
@@ -2045,7 +2101,8 @@ class CalculatorV2 {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
         
         slidesContainer.innerHTML = vehiclesHtml;
         
@@ -2059,12 +2116,20 @@ class CalculatorV2 {
         // Инициализируем карусель
         this.initVehicleCarousel();
         
+        // Добавляем обработчики для кнопок "Применить минимальную длительность"
+        this.bindMinDurationButtons();
+        
+        // Добавляем слушатель изменений длительности для обновления предупреждений
+        this.bindDurationChangeListener();
+        
         // Автоматически выбираем первый транспорт, если есть
         if (vehicles.length > 0) {
             this.selectVehicle(vehicles[0].id);
         }
     }
-    
+
+
+
     updateStep3Display(data) {
         const breakdown = data.breakdown;
         
@@ -2903,6 +2968,209 @@ class CalculatorV2 {
             radio.checked = false;
         });
     }
+
+    /**
+     * Добавляет обработчики событий для кнопок "Применить минимальную длительность"
+     */
+    bindMinDurationButtons() {
+        const minDurationButtons = document.querySelectorAll('.apply-min-duration-btn-compact');
+        minDurationButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // Предотвращаем выбор транспорта
+                
+                const vehicleId = parseInt(button.dataset.vehicleId);
+                const minDuration = parseInt(button.dataset.minDuration);
+                
+                console.log('Applying minimum duration:', { vehicleId, minDuration });
+                
+                // Обновляем длительность в первом шаге
+                const durationSelect = document.getElementById('durationSelect');
+                if (durationSelect) {
+                    durationSelect.value = minDuration;
+                    
+                    // Запускаем пересчет стоимости
+                    this.recalculateStep1Cost();
+                    
+                    // Обновляем предупреждения без полного обновления отображения
+                    this.updateMinDurationWarnings();
+                    
+                    // Показываем уведомление
+                    this.showNotification(`Длительность изменена на ${minDuration} часов`, 'success');
+                }
+            });
+        });
+    }
+
+    /**
+     * Добавляет слушатель изменений длительности для обновления предупреждений
+     */
+    bindDurationChangeListener() {
+        const durationSelect = document.getElementById('durationSelect');
+        if (durationSelect) {
+            durationSelect.addEventListener('change', () => {
+                // Обновляем предупреждения о минимальной длительности
+                this.updateMinDurationWarnings();
+                
+                // Проверяем валидность заказа при изменении длительности
+                this.checkOrderValidity();
+            });
+        }
+    }
+
+    /**
+     * Проверяет, является ли номер телефона полным и валидным
+     */
+    isPhoneComplete(phone) {
+        if (!phone) return false;
+        
+        // Убираем все нецифровые символы
+        const digits = phone.replace(/\D/g, '');
+        
+        // Проверяем, что номер начинается с 7 и содержит 11 цифр
+        return digits.length === 11 && digits.startsWith('7');
+    }
+
+    /**
+     * Проверяет, можно ли создать заявку с текущими параметрами
+     */
+    checkOrderValidity() {
+        const orderBtn = document.getElementById('orderButton');
+        if (!orderBtn) return;
+        
+        // Проверяем, выбран ли транспорт
+        if (!this.selectedVehicle) {
+            orderBtn.disabled = true;
+            orderBtn.title = 'Выберите транспорт';
+            return;
+        }
+        
+        // Проверяем минимальную длительность для выбранного транспорта
+        const currentDuration = parseInt(document.getElementById('durationSelect')?.value) || 2;
+        const vehicleMinDuration = this.selectedVehicle.min_base_duration_hours || 1;
+        
+        if (currentDuration < vehicleMinDuration) {
+            orderBtn.disabled = true;
+            orderBtn.title = `Минимальная длительность для этого транспорта: ${vehicleMinDuration} часов`;
+            return;
+        }
+        
+        // Проверяем, заполнены ли обязательные поля
+        const name = document.getElementById('customerName')?.value;
+        const phone = document.getElementById('customerPhone')?.value;
+        
+        if (!name) {
+            orderBtn.disabled = true;
+            orderBtn.title = 'Заполните имя';
+            return;
+        }
+        
+        if (!phone || !this.isPhoneComplete(phone)) {
+            orderBtn.disabled = true;
+            orderBtn.title = 'Введите полный номер телефона';
+            return;
+        }
+        
+        // Все проверки пройдены
+        orderBtn.disabled = false;
+        orderBtn.title = 'Создать заявку';
+    }
+
+    /**
+     * Обновляет предупреждения о минимальной длительности на основе текущей длительности
+     */
+    updateMinDurationWarnings() {
+        const currentDuration = parseInt(document.getElementById('durationSelect')?.value) || 2;
+        const vehicleCards = document.querySelectorAll('.vehicle-card');
+        
+        vehicleCards.forEach(card => {
+            const vehicleId = parseInt(card.dataset.vehicleId);
+            if (vehicleId) {
+                // Находим данные транспорта
+                const vehicle = this.calculationData.step2.vehicles?.find(v => v.id === vehicleId);
+                if (vehicle) {
+                    const vehicleMinDuration = vehicle.min_base_duration_hours || 1;
+                    const needsWarning = currentDuration < vehicleMinDuration;
+                    
+                    // Находим или создаем контейнер для предупреждения
+                    let warningContainer = card.querySelector('.min-duration-info');
+                    
+                    if (needsWarning) {
+                        // Нужно показать предупреждение
+                        if (!warningContainer) {
+                            // Создаем новый контейнер предупреждения
+                            const imageContainer = card.querySelector('.flex-shrink-0');
+                            if (imageContainer) {
+                                warningContainer = document.createElement('div');
+                                warningContainer.className = 'min-duration-info mt-2';
+                                warningContainer.innerHTML = `
+                                    <div class="min-duration-warning-compact">
+                                        <div class="warning-header-compact">
+                                            <i class="ri-alert-line mr-1 text-amber-500"></i>
+                                            <span class="text-xs font-medium text-amber-700">Мин. ${vehicleMinDuration}ч</span>
+                                        </div>
+                                        <button 
+                                            class="apply-min-duration-btn-compact"
+                                            data-vehicle-id="${vehicle.id}"
+                                            data-min-duration="${vehicleMinDuration}"
+                                        >
+                                            Применить
+                                        </button>
+                                    </div>
+                                `;
+                                imageContainer.appendChild(warningContainer);
+                                
+                                // Добавляем обработчик для новой кнопки
+                                const newButton = warningContainer.querySelector('.apply-min-duration-btn-compact');
+                                if (newButton) {
+                                    newButton.addEventListener('click', (e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        
+                                        const minDuration = parseInt(newButton.dataset.minDuration);
+                                        const durationSelect = document.getElementById('durationSelect');
+                                        if (durationSelect) {
+                                            durationSelect.value = minDuration;
+                                            this.recalculateStep1Cost();
+                                            this.filterVehicles();
+                                            this.showNotification(`Длительность изменена на ${minDuration} часов`, 'success');
+                                        }
+                                    });
+                                }
+                            }
+                        } else {
+                            // Обновляем существующее предупреждение
+                            const warningText = warningContainer.querySelector('.warning-header-compact span');
+                            const applyButton = warningContainer.querySelector('.apply-min-duration-btn-compact');
+                            if (warningText) {
+                                warningText.textContent = `Мин. ${vehicleMinDuration}ч`;
+                            }
+                            if (applyButton) {
+                                applyButton.dataset.minDuration = vehicleMinDuration;
+                            }
+                        }
+                    } else {
+                        // Предупреждение не нужно - удаляем его
+                        if (warningContainer) {
+                            warningContainer.remove();
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Проверяем валидность заказа после обновления предупреждений
+        this.checkOrderValidity();
+    }
+
+
+
+
+
+
+
+
+
 }
 
 // MapIntegration класс теперь находится в отдельном файле map-integration.js

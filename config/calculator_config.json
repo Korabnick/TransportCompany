@@ -45,6 +45,7 @@
       "price_per_hour": 2000,
       "price_per_km": 28,
       "base_price": 4000,
+      "min_base_duration_hours": 3,
       "max_passengers": 2,
       "max_loaders": 1,
       "dimensions": {
@@ -64,6 +65,7 @@
       "price_per_hour": 1200,
       "price_per_km": 35,
       "base_price": 800,
+      "min_base_duration_hours": 3,
       "max_passengers": 3,
       "max_loaders": 2,
       "dimensions": {
@@ -102,6 +104,7 @@
       "price_per_hour": 1500,
       "price_per_km": 40,
       "base_price": 1000,
+      "min_base_duration_hours": 4,
       "max_passengers": 2,
       "max_loaders": 3,
       "dimensions": {

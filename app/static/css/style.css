@@ -1956,4 +1956,126 @@ input[type="datetime-local"]:invalid:focus {
   color: var(--color-text-primary);
 }
 
+/* Стили для предупреждений о минимальной длительности */
+.min-duration-info {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.min-duration-info i {
+  font-size: 1.25rem;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.min-duration-info i:hover {
+  background: rgba(251, 191, 36, 0.1);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+.min-duration-info i:active {
+  transform: scale(0.95);
+}
+
+/* Компактное предупреждение о минимальной длительности под изображением */
+.min-duration-warning-compact {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+  padding: 3px 6px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.warning-header-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #92400e;
+  font-weight: 500;
+  margin-bottom: 1px;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding-bottom: 1px;
+}
+
+.apply-min-duration-btn-compact {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%;
+}
+
+.apply-min-duration-btn-compact:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.apply-min-duration-btn-compact:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Темная тема для компактного предупреждения */
+.dark .min-duration-warning-compact {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.dark .warning-header-compact {
+  color: #fbbf24;
+}
+
+.dark .apply-min-duration-btn-compact {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark .apply-min-duration-btn-compact:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Стили для заблокированной кнопки заказа */
+#orderButton:disabled {
+  background-color: #9ca3af !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+#orderButton:disabled:hover {
+  background-color: #9ca3af !important;
+  color: #6b7280 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Темная тема для заблокированной кнопки */
+.dark #orderButton:disabled {
+  background-color: #4b5563 !important;
+  color: #9ca3af !important;
+}
+
+.dark #orderButton:disabled:hover {
+  background-color: #4b5563 !important;
+  color: #9ca3af !important;
+}
+
 
