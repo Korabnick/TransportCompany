@@ -8,6 +8,8 @@ from app.models import (
 from app.order_models import order_storage, OrderStatus, PaymentMethod, Order
 from app.media_models import media_database, MediaType, MediaCategory
 from app.config_manager import config_manager
+from pathlib import Path
+import json
 
 def validate_duration_hours(duration_hours: int) -> tuple[bool, str]:
     """Валидация длительности на основе конфигурации"""
@@ -593,6 +595,22 @@ def api_proxy_osrm():
         return jsonify({'error': 'OSRM API request failed'}), 502
     except Exception as e:
         app.logger.error(f"OSRM proxy error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/v2/config/kad-polygon', methods=['GET'])
+@rate_limit(max_requests=100, window_seconds=60)
+def api_get_kad_polygon():
+    """Возвращает GeoJSON полигона КАДа для фронтенда"""
+    try:
+        base_dir = Path(__file__).parent.parent
+        geojson_path = base_dir / 'config' / 'kad_polygon.geojson'
+        if not geojson_path.exists():
+            return jsonify({'error': 'KAD polygon not found'}), 404
+        with open(geojson_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        app.logger.error(f"Get KAD polygon error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/v2/proxy/nominatim', methods=['GET'])

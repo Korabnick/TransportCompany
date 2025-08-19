@@ -98,6 +98,88 @@ class CalculatorV2 {
         };
     }
 
+    // Загрузка полигона КАД (GeoJSON)
+    async loadKadPolygon() {
+        try {
+            if (this._kadPolygonGeoJson) return this._kadPolygonGeoJson;
+            const resp = await fetch('/api/v2/config/kad-polygon');
+            const data = await resp.json();
+            if (data && data.success && data.data) {
+                this._kadPolygonGeoJson = data.data;
+                return this._kadPolygonGeoJson;
+            }
+        } catch (e) {
+            console.warn('Failed to load KAD polygon:', e);
+        }
+        return null;
+    }
+
+    // Запрос геометрии маршрута у OSRM через прокси
+    async fetchOsrmGeometry(from, to) {
+        try {
+            const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+            const url = `/api/v2/proxy/osrm?profile=driving&coordinates=${encodeURIComponent(coords)}&overview=full&geometries=geojson`;
+            const resp = await fetch(url);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.type === 'LineString') {
+                return { coordinates: data.routes[0].geometry.coordinates }; // [[lon, lat], ...]
+            }
+        } catch (e) {
+            console.warn('fetchOsrmGeometry failed:', e);
+        }
+        return null;
+    }
+
+    // Простой алгоритм point-in-polygon (ray casting) для одного контура
+    pointInPolygon(lon, lat, polygonRing) {
+        let inside = false;
+        for (let i = 0, j = polygonRing.length - 1; i < polygonRing.length; j = i++) {
+            const xi = polygonRing[i][0], yi = polygonRing[i][1];
+            const xj = polygonRing[j][0], yj = polygonRing[j][1];
+            const intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    // Сегментация маршрута по полигону КАД
+    segmentByPolygon(lineCoords, kadGeoJson) {
+        const features = kadGeoJson.features || [];
+        if (!features.length) return null;
+        const polygon = features[0].geometry;
+        if (!polygon || polygon.type !== 'Polygon' || !polygon.coordinates || !polygon.coordinates.length) return null;
+        const ring = polygon.coordinates[0]; // [[lon, lat], ...]
+
+        let cityKm = 0, outsideKm = 0, totalKm = 0;
+        for (let i = 0; i < lineCoords.length - 1; i++) {
+            const [lon1, lat1] = lineCoords[i];
+            const [lon2, lat2] = lineCoords[i + 1];
+            const segKm = this.haversineKm(lat1, lon1, lat2, lon2);
+            totalKm += segKm;
+            const midLon = (lon1 + lon2) / 2;
+            const midLat = (lat1 + lat2) / 2;
+            const inside = this.pointInPolygon(midLon, midLat, ring);
+            if (inside) cityKm += segKm; else outsideKm += segKm;
+        }
+
+        const total = Math.round(totalKm * 10) / 10;
+        const city = Math.round(cityKm * 10) / 10;
+        const outside = Math.round(outsideKm * 10) / 10;
+        let routeType = 'city_only';
+        if (city > 0 && outside > 0) routeType = 'mixed';
+        else if (outside > 0 && city === 0) routeType = 'outside_only';
+        return {
+            total_distance: total,
+            city_distance: city,
+            outside_distance: outside,
+            from_zone: city > 0 ? 'city' : 'outside',
+            to_zone: outside > 0 ? 'outside' : 'city',
+            route_type: routeType,
+            kad_toll_applied: outside > 0
+        };
+    }
+
     async init() {
         console.log('CalculatorV2 init called');
         
@@ -933,12 +1015,24 @@ class CalculatorV2 {
             const pickupTimeInput = document.getElementById('pickupTime');
             const pickupTime = pickupTimeInput?.value || '';
 
-            // Локальная зональная разбивка в соответствии с backend-логикой
-            const fromCoords = routeCoordinates[0] || null;
-            const toCoords = routeCoordinates[routeCoordinates.length - 1] || null;
-            const fromZone = this.determineZone(fromAddress, fromCoords);
-            const toZone = this.determineZone(toAddress, toCoords);
-            const routeAnalysis = this.buildRouteAnalysis(roundedTotalDistance, fromZone, toZone);
+            // Реальная посегментная разбивка как на бэкенде (через OSRM + полигон КАД)
+            let routeAnalysis = null;
+            try {
+                const kadPolygon = await this.loadKadPolygon();
+                if (kadPolygon && routeCoordinates[0] && routeCoordinates[routeCoordinates.length - 1]) {
+                    const from = routeCoordinates[0];
+                    const to = routeCoordinates[routeCoordinates.length - 1];
+                    const osrm = await this.fetchOsrmGeometry(from, to);
+                    if (osrm && osrm.coordinates && osrm.coordinates.length >= 2) {
+                        routeAnalysis = this.segmentByPolygon(osrm.coordinates, kadPolygon);
+                    }
+                }
+            } catch (e) { console.warn('Frontend segmentation failed, fallback used:', e); }
+            if (!routeAnalysis) {
+                const fromZone = this.determineZone(fromAddress, routeCoordinates[0] || null);
+                const toZone = this.determineZone(toAddress, routeCoordinates[routeCoordinates.length - 1] || null);
+                routeAnalysis = this.buildRouteAnalysis(roundedTotalDistance, fromZone, toZone);
+            }
 
             // Предварительный расчёт цены по зонам на фронте (по конфигу)
             let prelim = null;
@@ -947,7 +1041,7 @@ class CalculatorV2 {
             }
 
             const routeData = {
-                distance: roundedTotalDistance,
+                distance: routeAnalysis.total_distance ?? roundedTotalDistance,
                 duration: totalDuration,
                 from_address: fromAddress,
                 to_address: toAddress,
