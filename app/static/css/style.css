@@ -732,6 +732,21 @@ body, button, input, select, textarea {
   box-shadow: none !important;
 }
 
+/* Align vehicle thumbnail width with min-duration warning width */
+.vehicle-card .flex-shrink-0 {
+  width: 80px;
+}
+
+.vehicle-card .flex-shrink-0 > div {
+  width: 115% !important; /* override w-16 */
+  height: 75px !important; /* keep square */
+}
+
+.vehicle-card .min-duration-info .min-duration-warning-compact {
+  width: 100%;
+  box-sizing: border-box; /* include padding/border in width */
+}
+
 /* Стили для изображений транспорта в карточках */
 .vehicle-card img {
   transition: all 0.3s ease;
