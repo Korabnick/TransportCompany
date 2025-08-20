@@ -2031,6 +2031,9 @@ class CalculatorV2 {
             return;
         }
         
+        // Сохраняем желаемый стартовый индекс слайдера (если ранее уже был установлен)
+        const initialIndex = Math.max(0, Math.min((typeof this.currentVehicleSlideIndex === 'number' ? this.currentVehicleSlideIndex : 0), vehicles.length - 1));
+        
         // Создаем слайды для карусели
         const vehiclesHtml = vehicles.map(vehicle => {
             // Проверяем минимальную длительность для транспорта
@@ -2105,6 +2108,8 @@ class CalculatorV2 {
         }).join('');
         
         slidesContainer.innerHTML = vehiclesHtml;
+        // Пробрасываем желаемый стартовый индекс через data-атрибут
+        slidesContainer.dataset.currentIndex = String(initialIndex);
         
         // Создаем индикаторы
         const dotsHtml = vehicles.map((_, index) => `
@@ -2121,11 +2126,8 @@ class CalculatorV2 {
         
         // Добавляем слушатель изменений длительности для обновления предупреждений
         this.bindDurationChangeListener();
-        
-        // Автоматически выбираем первый транспорт, если есть
-        if (vehicles.length > 0) {
-            this.selectVehicle(vehicles[0].id);
-        }
+
+        // Выбор транспорта теперь выполняется внутри initVehicleCarousel() согласно текущему индексу
     }
 
 
@@ -2229,10 +2231,17 @@ class CalculatorV2 {
         if (!slidesContainer || dots.length === 0) return;
         
         let currentIndex = 0;
+        // Читаем стартовый индекс, если он был установлен ранее
+        const dataIndex = parseInt(slidesContainer.dataset.currentIndex || '0');
+        if (!Number.isNaN(dataIndex)) {
+            currentIndex = Math.max(0, Math.min(dataIndex, dots.length - 1));
+        }
         const slideCount = dots.length;
         
         const updateCarousel = () => {
             slidesContainer.style.transform = `translateX(-${currentIndex * 100}%)`;
+            // Сохраняем текущий индекс глобально, чтобы переживать перерендеры
+            this.currentVehicleSlideIndex = currentIndex;
             
             // Обновляем индикаторы
             dots.forEach((dot, index) => {
