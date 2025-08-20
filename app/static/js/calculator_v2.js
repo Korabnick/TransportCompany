@@ -1938,23 +1938,35 @@ class CalculatorV2 {
         const resultsBlock = document.getElementById('step1Results');
         
         if (priceElement) {
-            // Показываем 0 если данные невалидны, иначе реальную цену
             const price = (data && data.total && data.total > 0) ? Math.round(data.total) : 0;
             priceElement.textContent = `${price} ₽`;
         }
         
         if (distanceElement) {
-            // Показываем 0 если данные невалидны, иначе реальное расстояние (включая 0 для одинаковых адресов)
-            const distance = (data && data.distance !== undefined && data.distance >= 0) ? data.distance : 0;
-            distanceElement.textContent = `${distance} км`;
+            const distanceRow = distanceElement.closest('div');
+            const analysis = data && data.route_analysis ? data.route_analysis : null;
+            if (analysis && analysis.route_type === 'outside_only' && analysis.city_distance === 0 && analysis.outside_distance > 0) {
+                // Прячем строку с расстоянием, чтобы не путать пользователя общим километражом
+                if (distanceRow) distanceRow.classList.add('hidden');
+            } else {
+                // Показываем расстояние: для города — городское, иначе общий fallback
+                if (distanceRow) distanceRow.classList.remove('hidden');
+                if (analysis && analysis.route_type === 'city_only') {
+                    distanceElement.textContent = `${analysis.city_distance} км`;
+                } else if (analysis && analysis.route_type === 'outside_only') {
+                    // Если чисто за КАД (оба адреса вне города) — показываем именно загородное расстояние
+                    distanceElement.textContent = `${analysis.outside_distance} км`;
+                } else {
+                    const distance = (data && data.distance !== undefined && data.distance >= 0) ? data.distance : 0;
+                    distanceElement.textContent = `${distance} км`;
+                }
+            }
         }
         
-        // Показываем блок с результатами всегда
         if (resultsBlock) {
             resultsBlock.classList.remove('hidden');
         }
         
-        // Отображаем зональную информацию, если доступна
         this.updateZoneDisplay(data);
     }
     
