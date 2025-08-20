@@ -2997,7 +2997,12 @@ class CalculatorV2 {
                 const durationSelect = document.getElementById('durationSelect');
                 if (durationSelect) {
                     durationSelect.value = minDuration;
-                    
+                    // Flash highlight on duration field to show change
+                    durationSelect.classList.remove('duration-flash');
+                    void durationSelect.offsetWidth; // reflow to restart animation
+                    durationSelect.classList.add('duration-flash');
+                    setTimeout(() => durationSelect.classList.remove('duration-flash'), 1100);
+
                     // Запускаем пересчет стоимости
                     this.recalculateStep1Cost();
                     
@@ -3141,6 +3146,12 @@ class CalculatorV2 {
                                         const durationSelect = document.getElementById('durationSelect');
                                         if (durationSelect) {
                                             durationSelect.value = minDuration;
+                                            // Flash highlight on duration field
+                                            durationSelect.classList.remove('duration-flash');
+                                            // Force reflow to restart animation if needed
+                                            void durationSelect.offsetWidth;
+                                            durationSelect.classList.add('duration-flash');
+                                            setTimeout(() => durationSelect.classList.remove('duration-flash'), 900);
                                             this.recalculateStep1Cost();
                                             this.filterVehicles();
                                             this.showNotification(`Длительность изменена на ${minDuration} часов`, 'success');
