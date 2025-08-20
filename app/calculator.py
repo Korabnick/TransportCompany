@@ -175,7 +175,7 @@ class ZoneDistanceService:
     
     @staticmethod
     @cache.memoize(timeout=3600)  # Кэширование на 1 час
-    def get_distance_with_zones(from_address: str, to_address: str) -> Dict[str, Any]:
+    def get_distance_with_zones(from_address: str, to_address: str, logic_version: int = 2) -> Dict[str, Any]:
         """
         Получение расстояния между адресами с определением зон
         """
@@ -208,20 +208,28 @@ class ZoneDistanceService:
         coordinates = ZoneDistanceService._fetch_osrm_geometry(from_coords, to_coords)
         if kad_polygon and coordinates:
             city_km, outside_km, total_km = ZoneDistanceService._segment_route_by_polygon(coordinates, kad_polygon)
-            route_type = 'city_only'
+            # Новая логика: если есть и городские, и загородные километры — считаем только загородные
             if city_km > 0 and outside_km > 0:
-                route_type = 'mixed'
-            elif outside_km > 0 and city_km == 0:
+                effective_city_km = 0.0
+                effective_outside_km = outside_km
                 route_type = 'outside_only'
+            elif outside_km > 0 and city_km == 0:
+                effective_city_km = 0.0
+                effective_outside_km = outside_km
+                route_type = 'outside_only'
+            else:
+                effective_city_km = city_km
+                effective_outside_km = 0.0
+                route_type = 'city_only'
 
             route_analysis = {
                 'total_distance': round(total_km, 1),
-                'city_distance': round(city_km, 1),
-                'outside_distance': round(outside_km, 1),
+                'city_distance': round(effective_city_km, 1),
+                'outside_distance': round(effective_outside_km, 1),
                 'from_zone': from_zone,
                 'to_zone': to_zone,
                 'route_type': route_type,
-                'kad_toll_applied': outside_km > 0
+                'kad_toll_applied': effective_outside_km > 0
             }
         else:
             # Fallback к приближённому анализу
@@ -320,10 +328,10 @@ class ZoneDistanceService:
             outside_distance = total_distance
             kad_toll_applied = True
         else:
-            route_type = 'mixed'
-            # Для смешанных маршрутов используем приближённый расчёт
-            city_distance = total_distance * 0.6  # 60% по городу
-            outside_distance = total_distance * 0.4  # 40% за городом
+            # Новая логика: смешанные маршруты считаем как полностью за КАД (город не учитываем)
+            route_type = 'outside_only'
+            city_distance = 0.0
+            outside_distance = total_distance
             kad_toll_applied = True
         
         return {
@@ -443,9 +451,10 @@ class ZoneDistanceService:
             kad_toll_applied = True
         else:
             total_distance = 30.0
-            route_type = 'mixed'
-            city_distance = total_distance * 0.6
-            outside_distance = total_distance * 0.4
+            # Новая логика: смешанные маршруты считаем как полностью за КАД
+            route_type = 'outside_only'
+            city_distance = 0.0
+            outside_distance = total_distance
             kad_toll_applied = True
         
         return {

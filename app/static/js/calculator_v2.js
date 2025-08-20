@@ -80,10 +80,10 @@ class CalculatorV2 {
             outsideDistance = totalDistance;
             kad = true;
         } else {
-            routeType = 'mixed';
-            // Приближенно как на сервере: 60% город, 40% за КАД
-            cityDistance = Math.round(totalDistance * 0.6 * 10) / 10;
-            outsideDistance = Math.round(totalDistance * 0.4 * 10) / 10;
+            // Новая логика: если и город, и область — считаем только за КАД
+            routeType = 'outside_only';
+            cityDistance = 0;
+            outsideDistance = Math.round(totalDistance * 10) / 10;
             kad = true;
         }
 
@@ -167,16 +167,29 @@ class CalculatorV2 {
         const city = Math.round(cityKm * 10) / 10;
         const outside = Math.round(outsideKm * 10) / 10;
         let routeType = 'city_only';
-        if (city > 0 && outside > 0) routeType = 'mixed';
-        else if (outside > 0 && city === 0) routeType = 'outside_only';
+        let effCity = 0;
+        let effOutside = 0;
+        if (city > 0 && outside > 0) {
+            routeType = 'outside_only';
+            effCity = 0;
+            effOutside = outside;
+        } else if (outside > 0 && city === 0) {
+            routeType = 'outside_only';
+            effCity = 0;
+            effOutside = outside;
+        } else {
+            routeType = 'city_only';
+            effCity = city;
+            effOutside = 0;
+        }
         return {
             total_distance: total,
-            city_distance: city,
-            outside_distance: outside,
+            city_distance: effCity,
+            outside_distance: effOutside,
             from_zone: city > 0 ? 'city' : 'outside',
             to_zone: outside > 0 ? 'outside' : 'city',
             route_type: routeType,
-            kad_toll_applied: outside > 0
+            kad_toll_applied: effOutside > 0
         };
     }
 
