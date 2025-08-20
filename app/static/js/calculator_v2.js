@@ -2037,7 +2037,6 @@ class CalculatorV2 {
             const vehicleMinDuration = vehicle.min_base_duration_hours || 1;
             const currentDuration = parseInt(document.getElementById('durationSelect')?.value) || 2;
             const needsMinDurationWarning = currentDuration < vehicleMinDuration;
-            
             return `
             <div class="vehicle-slide min-w-full px-2">
                 <div class="vehicle-card border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-primary transition-colors bg-white shadow-sm" 
@@ -2055,9 +2054,10 @@ class CalculatorV2 {
                             <div class="min-duration-info mt-2">
                                 <div class="min-duration-warning-compact">
                                     <div class="warning-header-compact">
-                                        <i class="ri-alert-line mr-1 text-amber-500"></i>
-                                        <span class="text-xs font-medium text-amber-700">Мин. ${vehicleMinDuration}ч</span>
+                                        <i class="ri-alert-line text-amber-500"></i>
                                     </div>
+                                    <div class="text-xs font-medium text-amber-700 text-center">Длительность</div>
+                                    <div class="text-xs font-medium text-amber-700 text-center warning-duration-compact">от ${vehicleMinDuration} часов</div>
                                     <button 
                                         class="apply-min-duration-btn-compact"
                                         data-vehicle-id="${vehicle.id}"
@@ -3106,9 +3106,10 @@ class CalculatorV2 {
                                 warningContainer.innerHTML = `
                                     <div class="min-duration-warning-compact">
                                         <div class="warning-header-compact">
-                                            <i class="ri-alert-line mr-1 text-amber-500"></i>
-                                            <span class="text-xs font-medium text-amber-700">Мин. ${vehicleMinDuration}ч</span>
+                                            <i class="ri-alert-line text-amber-500"></i>
                                         </div>
+                                        <div class="text-xs font-medium text-amber-700 text-center">Длительность</div>
+                                        <div class="text-xs font-medium text-amber-700 text-center warning-duration-compact">от ${vehicleMinDuration} часов</div>
                                         <button 
                                             class="apply-min-duration-btn-compact"
                                             data-vehicle-id="${vehicle.id}"
@@ -3140,10 +3141,10 @@ class CalculatorV2 {
                             }
                         } else {
                             // Обновляем существующее предупреждение
-                            const warningText = warningContainer.querySelector('.warning-header-compact span');
+                            const durationText = warningContainer.querySelector('.warning-duration-compact');
                             const applyButton = warningContainer.querySelector('.apply-min-duration-btn-compact');
-                            if (warningText) {
-                                warningText.textContent = `Мин. ${vehicleMinDuration}ч`;
+                            if (durationText) {
+                                durationText.textContent = `от ${vehicleMinDuration} часов`;
                             }
                             if (applyButton) {
                                 applyButton.dataset.minDuration = vehicleMinDuration;

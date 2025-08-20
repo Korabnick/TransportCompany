@@ -658,14 +658,16 @@ body, button, input, select, textarea {
 /* Стили для карусели транспорта */
 .vehicles-carousel {
   position: relative;
-  height: 160px;
+  min-height: 160px;
+  height: auto;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   background-color: transparent;
 }
 
 .vehicles-slides {
-  height: 100%;
+  height: auto;
   display: flex;
   transition: transform 0.3s ease;
   width: 100%;
@@ -678,15 +680,27 @@ body, button, input, select, textarea {
 }
 
 .vehicle-card {
-  height: 100%;
+  height: auto;
+  min-height: min-content;
+  max-height: max-content;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  overflow: visible;
   transition: all 0.3s ease;
   border: 1px solid var(--color-primary);
   background-color: rgba(var(--color-primary-rgb), 0.08);
   border-radius: 8px;
   box-shadow: none;
+}
+
+/* Ensure row content inside card is not clipped and can define height */
+.vehicle-card > .flex {
+  overflow: visible;
+}
+
+.vehicle-slide {
+  height: auto;
 }
 
 /* Темная тема для карточек транспорта */
@@ -697,7 +711,7 @@ body, button, input, select, textarea {
 }
 
 .vehicle-card:hover {
-  transform: translateY(-2px);
+  transform: none;
   background-color: rgba(var(--color-primary-rgb), 0.12);
   box-shadow: none;
 }
@@ -724,6 +738,7 @@ body, button, input, select, textarea {
 .vehicles-carousel .vehicle-card:hover {
   background-color: rgba(var(--color-primary-rgb), 0.12) !important;
   box-shadow: none !important;
+  transform: none !important;
 }
 
 .vehicles-carousel .vehicle-card.selected {
@@ -737,14 +752,30 @@ body, button, input, select, textarea {
   width: 80px;
 }
 
-.vehicle-card .flex-shrink-0 > div {
+.vehicle-card .flex-shrink-0 > div:first-child {
   width: 115% !important; /* override w-16 */
-  height: 75px !important; /* keep square */
+  height: 75px !important; /* fixed uniform height */
+  overflow: hidden !important; /* keep rounded mask, prevent spill */
+  background: transparent !important;
+}
+
+.vehicle-card .flex-shrink-0 > .min-duration-info {
+  width: 115% !important;
+  height: auto !important;
 }
 
 .vehicle-card .min-duration-info .min-duration-warning-compact {
   width: 100%;
   box-sizing: border-box; /* include padding/border in width */
+  grid-auto-rows: min-content;
+  overflow: visible;
+}
+
+/* Ensure the warning wrapper itself grows naturally */
+.vehicle-card .min-duration-info {
+  display: block;
+  height: auto;
+  overflow: visible;
 }
 
 /* Стили для изображений транспорта в карточках */
@@ -758,6 +789,20 @@ body, button, input, select, textarea {
 
 .vehicle-card.selected img {
   border: 1px solid var(--color-primary);
+}
+
+/* Ensure vehicle thumbnail image is fully visible (no cropping) */
+.vehicle-card .flex-shrink-0 img {
+  object-fit: fill !important; /* fill box, allow vertical stretch */
+  object-position: center center !important;
+  width: 100% !important;
+  height: 100% !important; /* fixed container height */
+  display: block;
+}
+
+/* Prevent hover scaling for the thumbnail image to avoid visual cropping */
+.vehicle-card:hover .flex-shrink-0 img {
+  transform: none !important;
 }
 
 .vehicle-prev,
@@ -845,7 +890,9 @@ body, button, input, select, textarea {
   }
   
   .vehicles-carousel {
-    height: 140px;
+    min-height: 140px;
+    height: auto;
+    overflow-y: visible;
   }
   
   .vehicle-card {
@@ -2032,18 +2079,21 @@ input[type="datetime-local"]:invalid:focus {
   padding: 3px 6px;
   text-align: center;
   min-width: 80px;
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 2px;
 }
 
 .warning-header-compact {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: center;  
   color: #92400e;
   font-weight: 500;
-  margin-bottom: 1px;
+  margin-bottom: 0;
   font-size: 0.7rem;
   line-height: 1;
-  padding-bottom: 1px;
+  padding-bottom: 0;
 }
 
 .apply-min-duration-btn-compact {
@@ -2058,6 +2108,7 @@ input[type="datetime-local"]:invalid:focus {
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   width: 100%;
+  margin-top: 0;
 }
 
 .apply-min-duration-btn-compact:hover {
