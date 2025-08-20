@@ -27,20 +27,39 @@ class CalculatorV2 {
         this.init();
     }
     
-    // Определение зоны для адреса (приближённо, согласовано с backend логикой)
-    determineZone(address, coords) {
+    // Определение зоны для адреса (синхронизировано с backend логикой)
+    async determineZone(address, coords) {
         try {
             const pricing = window.configManager?.getPricing?.() || {};
             const zone = pricing.zone_detection || {};
-            const cityCenter = zone.city_center || { lat: 59.9311, lng: 30.3609 };
-            const cityRadius = Number(zone.city_radius_km) || 32.0;
-
+            
+            // Приоритет 1: Полигон КАД (как на бекенде)
+            if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+                const kadPolygon = await this.loadKadPolygon();
+                if (kadPolygon) {
+                    // Проверяем, находится ли точка внутри полигона КАД
+                    // Для простоты используем ту же логику что и бекенд
+                    // Shapely ожидает (x=lon, y=lat), поэтому меняем порядок
+                    const point = [coords.lon, coords.lat];
+                    if (this.isPointInPolygon(point, kadPolygon)) {
+                        return 'city';
+                    } else {
+                        return 'outside';
+                    }
+                }
+            }
+            
+            // Приоритет 2: Ключевые слова (как на бекенде)
             const lower = (address || '').toLowerCase();
             const keywords = (zone.kad_keywords || []).map(k => String(k).toLowerCase());
             if (keywords.some(k => lower.includes(k))) {
                 return 'outside';
             }
-
+            
+            // Приоритет 3: Расстояние от центра (как на бекенде)
+            const cityCenter = zone.city_center || { lat: 59.9311, lng: 30.3609 };
+            const cityRadius = Number(zone.city_radius_km) || 25.0; // Используем 25 км как на бекенде
+            
             if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
                 const dist = this.haversineKm(coords.lat, coords.lon, cityCenter.lat, cityCenter.lng);
                 return dist <= cityRadius ? 'city' : 'outside';
@@ -62,27 +81,24 @@ class CalculatorV2 {
         return R * c;
     }
 
-    // Формирование зонального анализа по типам маршрута (упрощенно как на backend)
+    // Формирование зонального анализа по типам маршрута (синхронизировано с backend логикой)
     buildRouteAnalysis(totalDistance, fromZone, toZone) {
-        let routeType = 'mixed';
-        let cityDistance = 0;
-        let outsideDistance = 0;
-        let kad = false;
+        let routeType, cityDistance, outsideDistance, kad;
 
         if (fromZone === 'city' && toZone === 'city') {
             routeType = 'city_only';
             cityDistance = totalDistance;
-            outsideDistance = 0;
+            outsideDistance = 0.0;
             kad = false;
         } else if (fromZone === 'outside' && toZone === 'outside') {
             routeType = 'outside_only';
-            cityDistance = 0;
+            cityDistance = 0.0;
             outsideDistance = totalDistance;
             kad = true;
         } else {
-            // Новая логика: если и город, и область — считаем только за КАД
+            // Смешанный маршаншрут: считаем только за КАД (город не учитываем)
             routeType = 'outside_only';
-            cityDistance = 0;
+            cityDistance = 0.0;
             outsideDistance = Math.round(totalDistance * 10) / 10;
             kad = true;
         }
@@ -98,52 +114,33 @@ class CalculatorV2 {
         };
     }
 
-    // Загрузка полигона КАД (GeoJSON)
-    async loadKadPolygon() {
-        try {
-            if (this._kadPolygonGeoJson) return this._kadPolygonGeoJson;
-            const resp = await fetch('/api/v2/config/kad-polygon');
-            const data = await resp.json();
-            if (data && data.success && data.data) {
-                this._kadPolygonGeoJson = data.data;
-                return this._kadPolygonGeoJson;
-            }
-        } catch (e) {
-            console.warn('Failed to load KAD polygon:', e);
+    // Проверка точки в полигоне (алгоритм ray casting)
+    isPointInPolygon(point, polygon) {
+        if (!polygon || !polygon.features || !polygon.features[0]) {
+            return false;
         }
-        return null;
-    }
-
-    // Запрос геометрии маршрута у OSRM через прокси
-    async fetchOsrmGeometry(from, to) {
-        try {
-            const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
-            const url = `/api/v2/proxy/osrm?profile=driving&coordinates=${encodeURIComponent(coords)}&overview=full&geometries=geojson`;
-            const resp = await fetch(url);
-            if (!resp.ok) return null;
-            const data = await resp.json();
-            if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.type === 'LineString') {
-                return { coordinates: data.routes[0].geometry.coordinates }; // [[lon, lat], ...]
-            }
-        } catch (e) {
-            console.warn('fetchOsrmGeometry failed:', e);
+        
+        const coordinates = polygon.features[0].geometry.coordinates[0]; // Берем внешний контур
+        if (!coordinates || coordinates.length < 3) {
+            return false;
         }
-        return null;
-    }
-
-    // Простой алгоритм point-in-polygon (ray casting) для одного контура
-    pointInPolygon(lon, lat, polygonRing) {
+        
+        const [x, y] = point;
         let inside = false;
-        for (let i = 0, j = polygonRing.length - 1; i < polygonRing.length; j = i++) {
-            const xi = polygonRing[i][0], yi = polygonRing[i][1];
-            const xj = polygonRing[j][0], yj = polygonRing[j][1];
-            const intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
-            if (intersect) inside = !inside;
+        
+        for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
+            const [xi, yi] = coordinates[i];
+            const [xj, yj] = coordinates[j];
+            
+            if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
         }
+        
         return inside;
     }
 
-    // Сегментация маршрута по полигону КАД
+    // Сегментация маршрута по полигону КАД (синхронизировано с backend логикой)
     segmentByPolygon(lineCoords, kadGeoJson) {
         const features = kadGeoJson.features || [];
         if (!features.length) return null;
@@ -159,29 +156,33 @@ class CalculatorV2 {
             totalKm += segKm;
             const midLon = (lon1 + lon2) / 2;
             const midLat = (lat1 + lat2) / 2;
-            const inside = this.pointInPolygon(midLon, midLat, ring);
+            const inside = this.isPointInPolygon([midLon, midLat], kadGeoJson);
             if (inside) cityKm += segKm; else outsideKm += segKm;
         }
 
         const total = Math.round(totalKm * 10) / 10;
         const city = Math.round(cityKm * 10) / 10;
         const outside = Math.round(outsideKm * 10) / 10;
-        let routeType = 'city_only';
-        let effCity = 0;
-        let effOutside = 0;
+        
+        // Логика точно как на бекенде
+        let routeType, effCity, effOutside;
         if (city > 0 && outside > 0) {
+            // Смешанный маршрут: считаем только за КАД
             routeType = 'outside_only';
-            effCity = 0;
+            effCity = 0.0;
             effOutside = outside;
         } else if (outside > 0 && city === 0) {
+            // Только за КАД
             routeType = 'outside_only';
-            effCity = 0;
+            effCity = 0.0;
             effOutside = outside;
         } else {
+            // Только в городе
             routeType = 'city_only';
             effCity = city;
-            effOutside = 0;
+            effOutside = 0.0;
         }
+        
         return {
             total_distance: total,
             city_distance: effCity,
@@ -1064,8 +1065,8 @@ class CalculatorV2 {
                 }
             } catch (e) { console.warn('Frontend segmentation failed, fallback used:', e); }
             if (!routeAnalysis) {
-                const fromZone = this.determineZone(fromAddress, routeCoordinates[0] || null);
-                const toZone = this.determineZone(toAddress, routeCoordinates[routeCoordinates.length - 1] || null);
+                const fromZone = await this.determineZone(fromAddress, routeCoordinates[0] || null);
+                const toZone = await this.determineZone(toAddress, routeCoordinates[routeCoordinates.length - 1] || null);
                 routeAnalysis = this.buildRouteAnalysis(roundedTotalDistance, fromZone, toZone);
             }
 
@@ -1433,25 +1434,37 @@ class CalculatorV2 {
     
     // Новый метод для пересчета стоимости шага 1
     recalculateStep1Cost() {
-        if (!this.calculationData.step1 || this.calculationData.step1.distance === undefined) {
+        if (!this.calculationData.step1) {
             console.log('No step1 data available for recalculation');
-            return;
-        }
-        
-        const distance = this.calculationData.step1.distance;
-        
-        // [ИСПРАВЛЕНО] Проверяем, что расстояние >= 0 (допускаем 0 для одинаковых адресов)
-        if (distance < 0) {
-            console.log('Distance is negative, cannot recalculate cost');
             return;
         }
         
         const durationHours = parseInt(document.getElementById('durationSelect')?.value) || 1;
         const urgentPickup = document.getElementById('urgentPickup')?.checked || false;
         
-        console.log('Recalculating step1 cost with:', { distance, durationHours, urgentPickup });
+        // Используем зональный анализ для правильного расчёта цены
+        let newTotal = 0;
         
-        const newTotal = this.calculateTotalCost(distance, durationHours, urgentPickup);
+        if (this.calculationData.step1.route_analysis && window.configManager && window.configManager.isReady()) {
+            // Используем новый зональный расчёт
+            const result = window.configManager.calculateRoutePriceWithZones(
+                this.calculationData.step1.route_analysis, 
+                durationHours, 
+                urgentPickup
+            );
+            if (result) {
+                newTotal = result.total;
+                console.log('Using zone-based calculation:', result);
+            }
+        } else {
+            // Fallback к старому расчёту
+            const distance = this.calculationData.step1.distance || 0;
+            if (distance < 0) {
+                console.log('Distance is negative, cannot recalculate cost');
+                return;
+            }
+            newTotal = this.calculateTotalCost(distance, durationHours, urgentPickup);
+        }
         
         // Обновляем данные
         this.calculationData.step1.total = newTotal;
@@ -1942,24 +1955,11 @@ class CalculatorV2 {
             priceElement.textContent = `${price} ₽`;
         }
         
+        // Полностью скрываем строку с расстоянием для всех случаев
         if (distanceElement) {
             const distanceRow = distanceElement.closest('div');
-            const analysis = data && data.route_analysis ? data.route_analysis : null;
-            if (analysis && analysis.route_type === 'outside_only' && analysis.city_distance === 0 && analysis.outside_distance > 0) {
-                // Прячем строку с расстоянием, чтобы не путать пользователя общим километражом
-                if (distanceRow) distanceRow.classList.add('hidden');
-            } else {
-                // Показываем расстояние: для города — городское, иначе общий fallback
-                if (distanceRow) distanceRow.classList.remove('hidden');
-                if (analysis && analysis.route_type === 'city_only') {
-                    distanceElement.textContent = `${analysis.city_distance} км`;
-                } else if (analysis && analysis.route_type === 'outside_only') {
-                    // Если чисто за КАД (оба адреса вне города) — показываем именно загородное расстояние
-                    distanceElement.textContent = `${analysis.outside_distance} км`;
-                } else {
-                    const distance = (data && data.distance !== undefined && data.distance >= 0) ? data.distance : 0;
-                    distanceElement.textContent = `${distance} км`;
-                }
+            if (distanceRow) {
+                distanceRow.classList.add('hidden');
             }
         }
         
@@ -2000,8 +2000,15 @@ class CalculatorV2 {
                     zoneClass = 'text-green-700 bg-green-50 border-green-200';
                     break;
                 case 'outside_only':
-                    zoneText = `🛣️ Маршрут за КАД (${analysis.outside_distance} км)`;
-                    zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
+                    if (analysis.city_distance === 0 && analysis.outside_distance > 0) {
+                        // Смешанный маршрут (город ↔ за КАД) - считаем только за КАД
+                        zoneText = `🔄 Маршрут: город ↔ за КАД (${analysis.outside_distance} км за КАД)`;
+                        zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
+                    } else {
+                        // Чисто за КАД (оба адреса вне города)
+                        zoneText = `🛣️ Маршрут за КАД (${analysis.outside_distance} км)`;
+                        zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
+                    }
                     break;
                 case 'mixed':
                     zoneText = `🔄 Смешанный маршрут: ${analysis.city_distance} км по городу + ${analysis.outside_distance} км за КАД`;
@@ -3209,14 +3216,38 @@ class CalculatorV2 {
         this.checkOrderValidity();
     }
 
+    // Загрузка полигона КАД (GeoJSON)
+    async loadKadPolygon() {
+        try {
+            if (this._kadPolygonGeoJson) return this._kadPolygonGeoJson;
+            const resp = await fetch('/api/v2/config/kad-polygon');
+            const data = await resp.json();
+            if (data && data.success && data.data) {
+                this._kadPolygonGeoJson = data.data;
+                return this._kadPolygonGeoJson;
+            }
+        } catch (e) {
+            console.warn('Failed to load KAD polygon:', e);
+        }
+        return null;
+    }
 
-
-
-
-
-
-
-
+    // Запрос геометрии маршрута у OSRM через прокси
+    async fetchOsrmGeometry(from, to) {
+        try {
+            const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+            const url = `/api/v2/proxy/osrm?profile=driving&coordinates=${encodeURIComponent(coords)}&overview=full&geometries=geojson`;
+            const resp = await fetch(url);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            if (data && data.routes && data.routes.length > 0 && data.routes[0].geometry && data.routes[0].geometry.type === 'LineString') {
+                return { coordinates: data.routes[0].geometry.coordinates }; // [[lon, lat], ...]
+            }
+        } catch (e) {
+            console.warn('fetchOsrmGeometry failed:', e);
+        }
+        return null;
+    }
 }
 
 // MapIntegration класс теперь находится в отдельном файле map-integration.js
