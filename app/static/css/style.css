@@ -683,27 +683,53 @@ body, button, input, select, textarea {
   flex-direction: column;
   justify-content: space-between;
   transition: all 0.3s ease;
-  border: none;
-  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb), 0.08);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 
 /* Темная тема для карточек транспорта */
 .dark .vehicle-card {
-  background-color: rgba(30, 26, 26, 0.7);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background-color: rgba(var(--color-primary-rgb), 0.12);
+  border-color: var(--color-primary);
+  box-shadow: none;
 }
 
 .vehicle-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  background-color: rgba(var(--color-primary-rgb), 0.12);
+  box-shadow: none;
 }
 
 .vehicle-card.selected {
   border: 2px solid var(--color-primary);
-  background-color: rgba(212, 106, 0, 0.05);
-  box-shadow: 0 4px 12px rgba(212, 106, 0, 0.2);
+  background-color: rgba(var(--color-primary-rgb), 0.16);
+  box-shadow: none;
+}
+
+/* Strong overrides inside the vehicles carousel to beat utility classes */
+.vehicles-carousel .vehicle-card {
+  border: 1px solid var(--color-primary) !important;
+  background-color: rgba(var(--color-primary-rgb), 0.08) !important;
+  box-shadow: none !important;
+}
+
+.dark .vehicles-carousel .vehicle-card {
+  background-color: rgba(var(--color-primary-rgb), 0.12) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: none !important;
+}
+
+.vehicles-carousel .vehicle-card:hover {
+  background-color: rgba(var(--color-primary-rgb), 0.12) !important;
+  box-shadow: none !important;
+}
+
+.vehicles-carousel .vehicle-card.selected {
+  border: 2px solid var(--color-primary) !important;
+  background-color: rgba(var(--color-primary-rgb), 0.16) !important;
+  box-shadow: none !important;
 }
 
 /* Стили для изображений транспорта в карточках */
