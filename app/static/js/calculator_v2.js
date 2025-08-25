@@ -112,6 +112,9 @@ class CalculatorV2 {
             route_type: routeType,
             kad_toll_applied: kad
         };
+        // Флаги управления длительностью
+        this.durationWasUserSet = false; // Пользователь менял длительность вручную
+        this.outsideThresholdActive = false; // Активен ли порог за КАД
     }
 
     // Проверка точки в полигоне (алгоритм ray casting)
@@ -293,6 +296,69 @@ class CalculatorV2 {
             return { min: 1, max: 24 }; // Fallback значения
         }
     }
+
+    /**
+     * Получить порог км за КАД для автоустановки минимальной длительности 3 часа
+     */
+    getOutsideKmThreshold() {
+        try {
+            if (window.configManager && window.configManager.isReady()) {
+                const limits = window.configManager.getCalculatorLimits();
+                const thr = parseFloat(limits.outside_km_threshold_min_duration);
+                return isNaN(thr) ? 0 : thr;
+            }
+        } catch (e) { console.warn('Failed to read outside_km_threshold_min_duration:', e); }
+        return 0; // по умолчанию без ограничения
+    }
+
+    /**
+     * Применить правило: если outside_distance > threshold, блокируем <3ч и при необходимости автоподнимаем до 3ч
+     */
+    applyOutsideDurationPolicy(routeAnalysis) {
+        const durationSelect = document.getElementById('durationSelect');
+        if (!durationSelect || !routeAnalysis) return;
+
+        const threshold = this.getOutsideKmThreshold();
+        const outsideKm = parseFloat(routeAnalysis.outside_distance || 0);
+        const shouldForceMinThree = threshold > 0 && outsideKm > threshold;
+
+        this.outsideThresholdActive = !!shouldForceMinThree;
+
+        // Обновляем блокировку опций < 3
+        this.updateDurationOptionsLock();
+
+        const currentVal = parseInt(durationSelect.value) || 1;
+
+        // Если активен порог и текущее значение < 3, то поднимаем до 3, НО
+        // не вмешиваемся, если пользователь уже сам выбрал >=3 ранее (все равно currentVal<3 — значит не выбрал)
+        if (this.outsideThresholdActive && currentVal < 3) {
+            durationSelect.value = 3;
+            // Анимация, как при применении 3ч из предупреждения
+            durationSelect.classList.remove('duration-flash');
+            void durationSelect.offsetWidth; // reflow для перезапуска анимации
+            durationSelect.classList.add('duration-flash');
+            setTimeout(() => durationSelect.classList.remove('duration-flash'), 1100);
+
+            // Пересчитываем цены с новым значением
+            this.recalculateStep1Cost();
+            this.filterVehicles();
+        }
+    }
+
+    /**
+     * Заблокировать выбор длительности < 3ч, если активен порог
+     */
+    updateDurationOptionsLock() {
+        const durationSelect = document.getElementById('durationSelect');
+        if (!durationSelect) return;
+        const lockUnderThree = !!this.outsideThresholdActive;
+        Array.from(durationSelect.options).forEach(opt => {
+            const val = parseInt(opt.value);
+            if (!isNaN(val)) {
+                opt.disabled = lockUnderThree && val < 3;
+            }
+        });
+    }
     
     /**
      * Динамически генерирует опции длительности на основе лимитов из конфигурации
@@ -305,7 +371,7 @@ class CalculatorV2 {
         
         try {
             const limits = this.getDurationLimits();
-            const minDuration = limits.min;
+            let minDuration = limits.min;
             const maxDuration = limits.max;
             
             console.log('Generating duration options with limits:', { minDuration, maxDuration });
@@ -605,6 +671,20 @@ class CalculatorV2 {
         
         if (durationSelect) {
             durationSelect.addEventListener('change', () => {
+                // Помечаем, что пользователь вручную менял длительность
+                this.durationWasUserSet = true;
+                // При активном пороге не даём выбрать <3
+                if (this.outsideThresholdActive) {
+                    const val = parseInt(durationSelect.value) || 1;
+                    if (val < 3) {
+                        durationSelect.value = 3;
+                        // Визуальный отклик
+                        durationSelect.classList.remove('duration-flash');
+                        void durationSelect.offsetWidth;
+                        durationSelect.classList.add('duration-flash');
+                        setTimeout(() => durationSelect.classList.remove('duration-flash'), 900);
+                    }
+                }
                 recalculateCost();
                 // Пересчитываем стоимость шага 2 при изменении длительности
                 this.recalculateStep2Cost();
@@ -1097,6 +1177,13 @@ class CalculatorV2 {
             };
             
             this.calculationData.step1 = routeData;
+            // Применяем новое правило длительности на основе outside_distance
+            if (routeData && routeData.route_analysis) {
+                this.applyOutsideDurationPolicy(routeData.route_analysis);
+            } else {
+                this.outsideThresholdActive = false;
+                this.updateDurationOptionsLock();
+            }
             this.updateStep1Display(routeData);
             this.updateRouteCostDisplay();
             
@@ -2960,6 +3047,12 @@ class CalculatorV2 {
                 const step1Resp = await this.makeRequest('/api/v2/calculator/step1', 'POST', step1Req);
                 if (step1Resp && step1Resp.success && step1Resp.data) {
                     this.calculationData.step1 = step1Resp.data;
+                    if (step1Resp.data && step1Resp.data.route_analysis) {
+                        this.applyOutsideDurationPolicy(step1Resp.data.route_analysis);
+                    } else {
+                        this.outsideThresholdActive = false;
+                        this.updateDurationOptionsLock();
+                    }
                     this.updateStep1Display(step1Resp.data);
                     this.updateRouteCostDisplay();
                 }

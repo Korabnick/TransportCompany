@@ -123,7 +123,8 @@
     "max_passengers": 2,
     "max_loaders": 5,
     "max_duration_hours": 24,
-    "min_duration_hours": 2
+    "min_duration_hours": 2,
+    "outside_km_threshold_min_duration": 60
   },
   "additional_services": {
     "driver_data": {

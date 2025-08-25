@@ -44,7 +44,9 @@ class ConfigManager:
                 "max_passengers": 20,
                 "max_loaders": 10,
                 "max_duration_hours": 24,
-                "min_duration_hours": 1
+                "min_duration_hours": 1,
+                # Порог расстояния за КАД (в км), при превышении которого минимальная длительность = 3 часа
+                "outside_km_threshold_min_duration": 30
             },
             "additional_services": {}
         }
