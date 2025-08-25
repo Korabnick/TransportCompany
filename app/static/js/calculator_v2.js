@@ -59,7 +59,7 @@ class CalculatorV2 {
             // Приоритет 3: Расстояние от центра (как на бекенде)
             const cityCenter = zone.city_center || { lat: 59.9311, lng: 30.3609 };
             const cityRadius = Number(zone.city_radius_km) || 25.0; // Используем 25 км как на бекенде
-            
+
             if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
                 const dist = this.haversineKm(coords.lat, coords.lon, cityCenter.lat, cityCenter.lng);
                 return dist <= cityRadius ? 'city' : 'outside';
@@ -1459,9 +1459,9 @@ class CalculatorV2 {
         } else {
             // Fallback к старому расчёту
             const distance = this.calculationData.step1.distance || 0;
-            if (distance < 0) {
-                console.log('Distance is negative, cannot recalculate cost');
-                return;
+        if (distance < 0) {
+            console.log('Distance is negative, cannot recalculate cost');
+            return;
             }
             newTotal = this.calculateTotalCost(distance, durationHours, urgentPickup);
         }
@@ -2006,8 +2006,8 @@ class CalculatorV2 {
                         zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
                     } else {
                         // Чисто за КАД (оба адреса вне города)
-                        zoneText = `🛣️ Маршрут за КАД (${analysis.outside_distance} км)`;
-                        zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
+                    zoneText = `🛣️ Маршрут за КАД (${analysis.outside_distance} км)`;
+                    zoneClass = 'text-orange-700 bg-orange-50 border-orange-200';
                     }
                     break;
                 case 'mixed':
@@ -2158,7 +2158,7 @@ class CalculatorV2 {
         
         // Добавляем слушатель изменений длительности для обновления предупреждений
         this.bindDurationChangeListener();
-
+        
         // Выбор транспорта теперь выполняется внутри initVehicleCarousel() согласно текущему индексу
     }
 
@@ -3034,7 +3034,7 @@ class CalculatorV2 {
                     void durationSelect.offsetWidth; // reflow to restart animation
                     durationSelect.classList.add('duration-flash');
                     setTimeout(() => durationSelect.classList.remove('duration-flash'), 1100);
-
+                    
                     // Запускаем пересчет стоимости
                     this.recalculateStep1Cost();
                     

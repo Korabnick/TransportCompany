@@ -79,8 +79,8 @@
                 <div class="company-title-main text-white">
                   ГРУЗОПЕРЕВОЗКИ
                 </div>
-                <div class="company-title-sub" style="color: #f8a918;">
-                  ПРОФ. ЭКИПАЖ
+                <div class="company-title-sub bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+                  ПРОФ.ЭКИПАЖ
                 </div>
               </div>
             </div>
@@ -102,6 +102,8 @@
               <i class="ri-phone-line mr-2 text-base"></i>
               <span>Перезвоним за 8 сек</span>
             </button>
+            
+
             
             <!-- Кнопка переключения темы -->
             <button
@@ -172,6 +174,15 @@
     
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-6 max-w-6xl">
+      <!-- Кнопка консультации (зафиксирована справа) -->
+      <button
+        id="consultationBtn"
+        class="consultation-btn"
+      >
+        <i class="ri-customer-service-2-line"></i>
+        <span class="consultation-text">Есть вопросы?</span>
+      </button>
+      
       <!-- Калькулятор (изначально видим) -->
       <div class="w-full rounded-lg shadow-sm max-w-5xl mx-auto" id="calculatorContainer">
         <div class="calculator-expanded grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
@@ -1002,6 +1013,83 @@
     </div>
   </div>
 
+  <!-- Модальное окно для консультации -->
+  <div id="consultationModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="text-xl font-bold text-gray-800 dark:text-white">Получить консультацию</h3>
+        <button id="closeConsultationModal" class="close-btn">
+          <i class="ri-close-line text-xl"></i>
+        </button>
+      </div>
+      
+      <!-- Информация о контакте -->
+      <div class="consultation-contact-info">
+        <div class="contact-header">
+          <i class="ri-phone-line"></i>
+          <span>Номер для связи:</span>
+        </div>
+        <div class="phone-number">
+          8 (800) 555 3535
+        </div>
+        <div class="availability">
+          <i class="ri-time-line"></i>
+          Круглосуточно
+        </div>
+      </div>
+      
+      <!-- Форма консультации -->
+      <form id="consultationForm" class="space-y-4">
+        <div class="form-group">
+          <label for="consultationName">Ваше имя *</label>
+          <input 
+            id="consultationName" 
+            type="text" 
+            placeholder="Введите ваше имя"
+            required
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="consultationPhone">Номер телефона *</label>
+          <input 
+            id="consultationPhone" 
+            type="tel" 
+            placeholder="+7 (___) ___-__-__"
+            required
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="consultationQuestions">Вопросы для консультации</label>
+          <textarea 
+            id="consultationQuestions" 
+            rows="3"
+            placeholder="Опишите ваши вопросы или укажите, по какому поводу нужна консультация..."
+          ></textarea>
+        </div>
+        
+        <div class="form-actions">
+          <button 
+            type="button"
+            id="cancelConsultation" 
+            class="btn-cancel"
+          >
+            Отмена
+          </button>
+          <button 
+            type="submit"
+            id="submitConsultation" 
+            class="btn-submit"
+          >
+            <i class="ri-send-plane-line"></i>
+            Отправить заявку
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 
 
   <script src="{{ url_for('static', filename='js/config-manager.js') }}"></script>
@@ -1010,5 +1098,6 @@
   <script src="{{ url_for('static', filename='js/map-integration.js') }}"></script>
   <script src="{{ url_for('static', filename='js/address-autocomplete.js') }}"></script>
   <script src="{{ url_for('static', filename='js/callback-request.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/consultation.js') }}"></script>
 </body>
 </html>

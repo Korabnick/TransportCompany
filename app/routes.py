@@ -739,6 +739,96 @@ def api_create_callback_request():
         app.logger.error(f"Error creating callback request: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/v2/consultation-request', methods=['POST'])
+@rate_limit(max_requests=10, window_seconds=60)
+def api_create_consultation_request():
+    """API для создания заявки на консультацию"""
+    try:
+        # Логируем все переменные окружения для отладки
+        app.logger.info("=== ENVIRONMENT VARIABLES DEBUG ===")
+        app.logger.info(f"TELEGRAM_BOT_TOKEN: {'SET' if os.getenv('TELEGRAM_BOT_TOKEN') else 'NOT SET'}")
+        app.logger.info(f"TELEGRAM_CONSULTATION_CHAT_ID: {'SET' if os.getenv('TELEGRAM_CONSULTATION_CHAT_ID') else 'NOT SET'}")
+        app.logger.info(f"TELEGRAM_CONSULTATION_CHAT_ID value: {os.getenv('TELEGRAM_CONSULTATION_CHAT_ID')}")
+        
+        # Проверяем все переменные окружения, связанные с Telegram
+        telegram_vars = {k: v for k, v in os.environ.items() if 'TELEGRAM' in k}
+        app.logger.info(f"All Telegram environment variables: {telegram_vars}")
+        app.logger.info("=== END ENVIRONMENT VARIABLES DEBUG ===")
+        
+        data = request.get_json()
+        app.logger.info(f"CONSULTATION REQUEST DATA: {data}")
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Извлечение данных клиента
+        customer_name = data.get('customer_name', '').strip()
+        customer_phone = data.get('customer_phone', '').strip()
+        questions = data.get('questions', '').strip()
+
+        # Валидация обязательных полей
+        if not customer_name:
+            return jsonify({'error': 'Customer name is required'}), 400
+        if not customer_phone:
+            return jsonify({'error': 'Customer phone is required'}), 400
+
+        app.logger.info(f"Creating consultation order for: {customer_name}, {customer_phone}")
+
+        # Создаем заявку на консультацию
+        consultation_order = Order(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            from_address='Заявка на консультацию',
+            to_address='Заявка на консультацию',
+            pickup_time=datetime.now().isoformat(),
+            duration_hours=0,
+            passengers=0,
+            loaders=0,
+            selected_vehicle={},
+            total_cost=0,
+            order_notes=f'Заявка на консультацию. Вопросы: {questions if questions else "Не указаны"}',
+            payment_method=PaymentMethod.CASH,
+            status=OrderStatus.NEW
+        )
+
+        # Добавляем тип заявки
+        consultation_order.order_type = 'consultation'
+
+        # Сохраняем заявку
+        order_id = order_storage.add_order(consultation_order)
+        consultation_order.id = order_id
+        
+        app.logger.info(f"Consultation order saved with ID: {order_id}")
+
+        # Отправляем в телеграм
+        order_data = consultation_order.to_dict()
+        order_data['order_type'] = 'consultation'
+        
+        app.logger.info(f"Attempting to send to Telegram: {order_data}")
+        
+        telegram_sent = send_telegram_message_direct(order_data)
+        app.logger.info(f"Telegram send result: {telegram_sent}")
+        
+        if telegram_sent:
+            consultation_order.mark_telegram_sent()
+            order_storage.update_order(consultation_order)
+            app.logger.info("Order marked as telegram sent")
+        else:
+            app.logger.error("Failed to send to Telegram")
+
+        app.logger.info(f"Consultation request created: {order_id}")
+        
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'message': 'Заявка на консультацию успешно создана'
+        }), 201
+
+    except Exception as e:
+        app.logger.error(f"Error creating consultation request: {e}")
+        import traceback
+        app.logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/api/v2/orders', methods=['POST'])
 @rate_limit(max_requests=20, window_seconds=60)
 def api_create_order():
@@ -1136,13 +1226,25 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
             chat_id = os.getenv('TELEGRAM_URGENT_CHAT_ID')
         elif order_type == 'callback':
             chat_id = os.getenv('TELEGRAM_CALLBACK_CHAT_ID')
+        elif order_type == 'consultation':
+            chat_id = os.getenv('TELEGRAM_CONSULTATION_CHAT_ID')
+            app.logger.info(f"CONSULTATION: Using TELEGRAM_CONSULTATION_CHAT_ID: {'SET' if chat_id else 'NOT SET'}")
+            app.logger.info(f"CONSULTATION: chat_id value: {chat_id}")
+            app.logger.info(f"CONSULTATION: os.environ keys: {list(os.environ.keys())}")
+            app.logger.info(f"CONSULTATION: TELEGRAM keys in environ: {[k for k in os.environ.keys() if 'TELEGRAM' in k]}")
         else:
             chat_id = os.getenv('TELEGRAM_CHAT_ID')
         
         app.logger.info(f"Telegram sending - Bot token: {'SET' if bot_token else 'NOT SET'}, Chat ID: {'SET' if chat_id else 'NOT SET'}, Order type: {order_type}")
         
         if not bot_token or not chat_id:
-            logger.error(f"TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены для типа заявки: {order_type}")
+            app.logger.error(f"TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не установлены для типа заявки: {order_type}")
+            if order_type == 'consultation':
+                app.logger.error(f"CONSULTATION ERROR: bot_token={'SET' if bot_token else 'NOT SET'}, chat_id={'SET' if chat_id else 'NOT SET'}")
+                app.logger.error(f"CONSULTATION ERROR: Full environment check:")
+                app.logger.error(f"  - os.environ type: {type(os.environ)}")
+                app.logger.error(f"  - os.environ size: {len(os.environ)}")
+                app.logger.error(f"  - TELEGRAM vars: {[k for k in os.environ.keys() if 'TELEGRAM' in k]}")
             return False
         
         # Формируем сообщение
@@ -1176,6 +1278,8 @@ def send_telegram_message_direct(order_data: Dict[str, Any]) -> bool:
             
     except Exception as e:
         app.logger.error(f"Ошибка при отправке в Telegram: {e}")
+        import traceback
+        app.logger.error(f"Telegram error traceback: {traceback.format_exc()}")
         return False
 
 def format_order_message(order_data: Dict[str, Any]) -> str:
@@ -1249,6 +1353,17 @@ def format_order_message(order_data: Dict[str, Any]) -> str:
 💳 <b>Оплата:</b> {payment_method}
 
 📝 <b>Примечания:</b> {order_notes if order_notes else 'Нет'}
+
+🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
+            """
+        elif order_type == 'consultation':
+            message = f"""
+💬 <b>ЗАЯВКА НА КОНСУЛЬТАЦИЮ #{order_id}</b>
+
+👤 <b>Клиент:</b> {customer_name}
+📞 <b>Телефон:</b> {customer_phone}
+
+💬 <b>Вопросы:</b> {order_notes if order_notes else 'Не указаны'}
 
 🕐 <i>Создано: {datetime.now().strftime('%d.%m.%Y в %H:%M:%S')}</i>
             """
